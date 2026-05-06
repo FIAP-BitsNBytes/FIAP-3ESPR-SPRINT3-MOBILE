@@ -1,2 +1,2 @@
-import { ScheduleScreen } from '@/features/shared/screens/ScheduleScreen';
+import { ScheduleScreen } from '@/features/calendar';
 export default ScheduleScreen;

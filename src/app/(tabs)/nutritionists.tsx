@@ -1,2 +1,2 @@
-import { AdminNutritionistsScreen } from '@/features/admin/screens/NutritionistsScreen';
+import { AdminNutritionistsScreen } from '@/features/admin';
 export default AdminNutritionistsScreen;

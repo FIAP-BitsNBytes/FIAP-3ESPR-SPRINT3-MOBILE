@@ -3,14 +3,7 @@ import { Star } from 'lucide-react-native';
 import { XPProgressBar } from './XPProgressBar';
 import { StreakBadge } from './StreakBadge';
 import { colors, spacing, radius, fontSize } from '@/shared/theme';
-
-const LEVEL_TITLES: Record<number, string> = {
-  1: 'Iniciante',
-  2: 'Aprendiz',
-  3: 'Praticante',
-  4: 'Guerreiro Nutricional',
-  5: 'Mestre da Saúde',
-};
+import { LEVEL_TITLES } from '@/shared/domain/gamification';
 
 interface LevelCardProps {
   level: number;

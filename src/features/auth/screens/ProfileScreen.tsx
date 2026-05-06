@@ -2,7 +2,7 @@ import { ScrollView, View, Text, StyleSheet, TouchableOpacity } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LogOut } from 'lucide-react-native';
 import { colors, spacing, radius, fontSize } from '@/shared/theme';
-import { useAuthContext } from '@/features/auth';
+import { useAuthContext } from '../context/AuthContext';
 
 const ROLE_LABEL = { PATIENT: 'Paciente', NUTRITIONIST: 'Nutricionista', ADMIN: 'Administrador' };
 const ROLE_COLOR = { PATIENT: colors.primary, NUTRITIONIST: colors.success, ADMIN: colors.warning };

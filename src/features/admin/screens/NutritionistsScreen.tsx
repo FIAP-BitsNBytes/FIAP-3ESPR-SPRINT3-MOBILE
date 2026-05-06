@@ -2,17 +2,9 @@ import { FlatList, View, Text, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CheckCircle, XCircle, Clock } from 'lucide-react-native';
 import { colors, spacing, radius, fontSize } from '@/shared/theme';
+import type { NutritionistStatus, NutritionistRequest } from '../domain/admin';
 
-type NutritionistStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
-
-interface NutritionistItem {
-  id: string;
-  name: string;
-  crmCrn: string;
-  status: NutritionistStatus;
-}
-
-const MOCK: NutritionistItem[] = [
+const MOCK: NutritionistRequest[] = [
   { id: '1', name: 'Dra. Fernanda Ramos', crmCrn: 'CRN-3 12345', status: 'APPROVED' },
   { id: '2', name: 'Dr. Lucas Mendes', crmCrn: 'CRN-3 67890', status: 'PENDING' },
   { id: '3', name: 'Dra. Juliana Pires', crmCrn: 'CRN-3 11223', status: 'PENDING' },
@@ -25,7 +17,7 @@ const STATUS_CONFIG = {
   REJECTED: { color: colors.danger, Icon: XCircle, label: 'Rejeitado' },
 } as const;
 
-function NutritionistRow({ item }: { item: NutritionistItem }) {
+function NutritionistRow({ item }: { item: NutritionistRequest }) {
   const { color, Icon, label } = STATUS_CONFIG[item.status];
   return (
     <View style={styles.card}>

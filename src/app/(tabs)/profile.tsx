@@ -1,2 +1,2 @@
-import { ProfileScreen } from '@/features/shared/screens/ProfileScreen';
+import { ProfileScreen } from '@/features/auth';
 export default ProfileScreen;

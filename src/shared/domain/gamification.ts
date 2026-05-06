@@ -24,3 +24,11 @@ export const calculateLevel = (experience: number): number => {
 };
 
 export const EXPERIENCE_PER_POINT = 10;
+
+export const LEVEL_TITLES: Record<number, string> = {
+  1: 'Iniciante',
+  2: 'Aprendiz',
+  3: 'Praticante',
+  4: 'Guerreiro Nutricional',
+  5: 'Mestre da Saúde',
+};

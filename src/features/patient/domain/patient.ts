@@ -1,4 +1,4 @@
-import { User } from '@/features/auth/domain/auth';
+import type { User } from '@/features/auth';
 
 export interface PatientProfile extends User {
   birthDate: string;

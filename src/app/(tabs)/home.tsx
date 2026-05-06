@@ -1,7 +1,7 @@
 import { useAuthContext } from '@/features/auth';
-import { PatientHomeScreen } from '@/features/patient/screens/HomeScreen';
-import { NutritionistHomeScreen } from '@/features/nutritionist/screens/HomeScreen';
-import { AdminDashboardScreen } from '@/features/admin/screens/DashboardScreen';
+import { PatientHomeScreen } from '@/features/patient';
+import { NutritionistHomeScreen } from '@/features/nutritionist';
+import { AdminDashboardScreen } from '@/features/admin';
 
 export default function HomeRoute() {
   const { user } = useAuthContext();

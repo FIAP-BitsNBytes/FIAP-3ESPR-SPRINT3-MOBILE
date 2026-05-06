@@ -1,2 +1,2 @@
-import { NutritionistPatientsScreen } from '@/features/nutritionist/screens/PatientsScreen';
+import { NutritionistPatientsScreen } from '@/features/nutritionist';
 export default NutritionistPatientsScreen;
