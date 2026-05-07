@@ -3,32 +3,53 @@ import {
   Home, UtensilsCrossed, Calendar, User,
   Users, Trophy, LayoutDashboard, Stethoscope,
 } from 'lucide-react-native';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, View, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthContext } from '@/features/auth';
 import { colors } from '@/shared/theme';
 
-const SCREEN_OPTIONS = {
-  headerStyle: { backgroundColor: colors.background },
-  headerTintColor: colors.text,
-  tabBarActiveTintColor: colors.primary,
-  tabBarInactiveTintColor: colors.muted,
-  tabBarStyle: {
-    backgroundColor: colors.surface,
-    borderTopColor: colors.border,
-    height: 60,
-    paddingBottom: 8,
-  },
-};
+const ICON_SIZE = 22;
+
+function useTabScreenOptions() {
+  const insets = useSafeAreaInsets();
+  const bottomPad = Math.max(insets.bottom, 8);
+  return {
+    headerShown: false,
+    tabBarActiveTintColor: colors.primary,
+    tabBarInactiveTintColor: colors.muted,
+    tabBarStyle: {
+      backgroundColor: colors.surface,
+      borderTopColor: colors.border,
+      borderTopWidth: 1,
+      height: 56 + bottomPad,
+      paddingBottom: bottomPad,
+      paddingTop: 8,
+      // Android elevation
+      elevation: 16,
+      // iOS shadow
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: -4 },
+      shadowOpacity: 0.25,
+      shadowRadius: 12,
+    },
+    tabBarLabelStyle: {
+      fontSize: 10,
+      fontWeight: '600' as const,
+      marginTop: Platform.OS === 'ios' ? 0 : 2,
+    },
+  };
+}
 
 const HIDDEN = { href: null } as const;
 
 function PatientTabs() {
+  const screenOptions = useTabScreenOptions();
   return (
-    <Tabs screenOptions={SCREEN_OPTIONS}>
-      <Tabs.Screen name="home" options={{ title: 'Home', tabBarIcon: ({ color }) => <Home size={22} color={color} /> }} />
-      <Tabs.Screen name="nutrition" options={{ title: 'Nutrição', tabBarIcon: ({ color }) => <UtensilsCrossed size={22} color={color} /> }} />
-      <Tabs.Screen name="schedule" options={{ title: 'Agenda', tabBarIcon: ({ color }) => <Calendar size={22} color={color} /> }} />
-      <Tabs.Screen name="profile" options={{ title: 'Perfil', tabBarIcon: ({ color }) => <User size={22} color={color} /> }} />
+    <Tabs screenOptions={screenOptions}>
+      <Tabs.Screen name="home" options={{ title: 'Home', tabBarIcon: ({ color }) => <Home size={ICON_SIZE} color={color} /> }} />
+      <Tabs.Screen name="nutrition" options={{ title: 'Nutrição', tabBarIcon: ({ color }) => <UtensilsCrossed size={ICON_SIZE} color={color} /> }} />
+      <Tabs.Screen name="schedule" options={{ title: 'Agenda', tabBarIcon: ({ color }) => <Calendar size={ICON_SIZE} color={color} /> }} />
+      <Tabs.Screen name="profile" options={{ title: 'Perfil', tabBarIcon: ({ color }) => <User size={ICON_SIZE} color={color} /> }} />
       <Tabs.Screen name="index" options={HIDDEN} />
       <Tabs.Screen name="patients" options={HIDDEN} />
       <Tabs.Screen name="ranking" options={HIDDEN} />
@@ -38,13 +59,14 @@ function PatientTabs() {
 }
 
 function NutritionistTabs() {
+  const screenOptions = useTabScreenOptions();
   return (
-    <Tabs screenOptions={SCREEN_OPTIONS}>
-      <Tabs.Screen name="home" options={{ title: 'Home', tabBarIcon: ({ color }) => <Home size={22} color={color} /> }} />
-      <Tabs.Screen name="patients" options={{ title: 'Pacientes', tabBarIcon: ({ color }) => <Users size={22} color={color} /> }} />
-      <Tabs.Screen name="ranking" options={{ title: 'Ranking', tabBarIcon: ({ color }) => <Trophy size={22} color={color} /> }} />
-      <Tabs.Screen name="schedule" options={{ title: 'Agenda', tabBarIcon: ({ color }) => <Calendar size={22} color={color} /> }} />
-      <Tabs.Screen name="profile" options={{ title: 'Perfil', tabBarIcon: ({ color }) => <User size={22} color={color} /> }} />
+    <Tabs screenOptions={screenOptions}>
+      <Tabs.Screen name="home" options={{ title: 'Home', tabBarIcon: ({ color }) => <Home size={ICON_SIZE} color={color} /> }} />
+      <Tabs.Screen name="patients" options={{ title: 'Pacientes', tabBarIcon: ({ color }) => <Users size={ICON_SIZE} color={color} /> }} />
+      <Tabs.Screen name="ranking" options={{ title: 'Ranking', tabBarIcon: ({ color }) => <Trophy size={ICON_SIZE} color={color} /> }} />
+      <Tabs.Screen name="schedule" options={{ title: 'Agenda', tabBarIcon: ({ color }) => <Calendar size={ICON_SIZE} color={color} /> }} />
+      <Tabs.Screen name="profile" options={{ title: 'Perfil', tabBarIcon: ({ color }) => <User size={ICON_SIZE} color={color} /> }} />
       <Tabs.Screen name="index" options={HIDDEN} />
       <Tabs.Screen name="nutrition" options={HIDDEN} />
       <Tabs.Screen name="nutritionists" options={HIDDEN} />
@@ -53,12 +75,13 @@ function NutritionistTabs() {
 }
 
 function AdminTabs() {
+  const screenOptions = useTabScreenOptions();
   return (
-    <Tabs screenOptions={SCREEN_OPTIONS}>
-      <Tabs.Screen name="home" options={{ title: 'Dashboard', tabBarIcon: ({ color }) => <LayoutDashboard size={22} color={color} /> }} />
-      <Tabs.Screen name="nutritionists" options={{ title: 'Nutricionistas', tabBarIcon: ({ color }) => <Stethoscope size={22} color={color} /> }} />
-      <Tabs.Screen name="schedule" options={{ title: 'Agenda', tabBarIcon: ({ color }) => <Calendar size={22} color={color} /> }} />
-      <Tabs.Screen name="profile" options={{ title: 'Perfil', tabBarIcon: ({ color }) => <User size={22} color={color} /> }} />
+    <Tabs screenOptions={screenOptions}>
+      <Tabs.Screen name="home" options={{ title: 'Dashboard', tabBarIcon: ({ color }) => <LayoutDashboard size={ICON_SIZE} color={color} /> }} />
+      <Tabs.Screen name="nutritionists" options={{ title: 'Nutricionistas', tabBarIcon: ({ color }) => <Stethoscope size={ICON_SIZE} color={color} /> }} />
+      <Tabs.Screen name="schedule" options={{ title: 'Agenda', tabBarIcon: ({ color }) => <Calendar size={ICON_SIZE} color={color} /> }} />
+      <Tabs.Screen name="profile" options={{ title: 'Perfil', tabBarIcon: ({ color }) => <User size={ICON_SIZE} color={color} /> }} />
       <Tabs.Screen name="index" options={HIDDEN} />
       <Tabs.Screen name="nutrition" options={HIDDEN} />
       <Tabs.Screen name="patients" options={HIDDEN} />
@@ -73,7 +96,7 @@ export default function TabLayout() {
   if (isLoading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
-        <ActivityIndicator color={colors.primary} />
+        <ActivityIndicator color={colors.primary} size="large" />
       </View>
     );
   }
