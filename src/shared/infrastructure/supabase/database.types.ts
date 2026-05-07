@@ -375,6 +375,7 @@ export type Database = {
       }
     }
     Functions: {
+      accept_current_invite: { Args: never; Returns: undefined }
       archive_old_data: { Args: never; Returns: undefined }
       award_xp: {
         Args: { p_patient_id: string; p_xp_amount: number }
