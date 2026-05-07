@@ -1,35 +1,45 @@
-# Arquitetura do Banco de Dados e Matriz de Acesso (Auditoria)
+# Arquitetura do Banco de Dados - Referência Técnica
 
-**Data:** 2026-05-04  
-**Versão:** 1.0  
-**Objetivo:** Detalhar a estrutura do banco de dados e as garantias técnicas de isolamento de dados conforme as regras de sigilo médico.
+**Versão:** 2.0  
+**Tecnologia:** PostgreSQL + Supabase  
+**Padrão:** DDD + Multi-tenancy Estrito
 
-## 1. Diagrama de Relacionamento (Conceitual)
-- `profiles` (PK: id) -> Tabela central de identidade.
-- `patient_details` (FK: nutritionist_id -> profiles.id) -> Vincula o paciente ao médico.
-- `meal_logs` (FK: patient_id -> profiles.id) -> Dados de consumo.
-- `evolution_logs` (FK: patient_id, nutritionist_id -> profiles.id) -> Dados clínicos.
+## 1. Modelo de Dados (Entidades Principais)
 
-## 2. Matriz de Auditoria e Metadados
-Para conformidade total, todas as tabelas implementam as seguintes colunas de rastro:
-- `created_at` / `updated_at` (TIMESTAMPTZ)
-- `created_by` / `updated_by` (UUID -> profiles)
+### A. Núcleo de Identidade
+- `profiles`: Extensão de `auth.users`. Contém `name`, `role` e o vínculo obrigatório com `clinic_id`.
+- `clinics`: Entidade raiz do Multi-tenancy. Define a fronteira de isolamento de dados.
 
-## 3. Matriz de Acesso via RLS (Row-Level Security)
+### B. Domínio Clínico
+- `patient_details`: Dados biométricos e objetivos. Inclui `prescribed_meals_per_day` para controle de gamificação.
+- `meal_logs`: Registros de consumo. Utiliza o Enum `measurement_unit` e possui trigger de proteção contra excesso de registros.
+- `evolution_logs`: Histórico de bioimpedância e observações do nutricionista.
 
-| Tabela | Paciente (Dono) | Médico (Vinculado) | Admin | Justificativa de Auditoria |
-|---|---|---|---|---|
-| `profiles` | Leitura | Leitura | Leitura/Escrita | Gestão de identidade e permissões. |
-| `patient_details` | Leitura | Leitura/Escrita | **BLOQUEADO** | Sigilo médico. Apenas o médico vinculado altera dados. |
-| `meal_logs` | Leitura/Escrita | Leitura | **BLOQUEADO** | Paciente registra, médico monitora em tempo real. |
-| `evolution_logs` | Leitura | Leitura/Escrita | **BLOQUEADO** | Exclusividade técnica do médico assistente. |
-| `gamification_stats` | Leitura | Leitura | Leitura | Dados não sensíveis, usados para engajamento. |
+### C. Engajamento e Gestão
+- `gamification_stats`: XP, Pontos, Nível e Streaks.
+- `appointments`: Gestão de agenda com RLS para médico e paciente.
 
-## 3. Estratégia de Performance (Índices)
-Para garantir a responsividade (Web-First), os seguintes índices foram planejados:
-- `idx_meal_logs_patient_date`: Composto para busca rápida de histórico diário.
-- `idx_evolution_patient_desc`: Para carregar o último peso/bioimpedância instantaneamente.
-- `idx_patient_nutritionist`: Para o dashboard médico listar todos os seus pacientes de forma otimizada.
+## 2. Dicionário de Tipos (Enums)
+Eliminação de strings mágicas para garantir integridade:
+- `measurement_unit`: `GRAMS`, `MILLILITERS`, `UNITS`, `PORTIONS`, `CALORIES`.
+- `log_type`: `MEAL`, `WATER`, `SUPPLEMENT`, `EXERCISE`.
+- `user_role`: `PATIENT`, `NUTRITIONIST`, `ADMIN`.
 
-## 4. Verificação de Sigilo
-As políticas de RLS no arquivo de migration `20260504000000_initial_schema.sql` utilizam `auth.uid()` para validar a identidade do solicitante contra o `patient_id` ou `nutritionist_id` da linha em questão, impedindo que requisições forjadas acessem dados de terceiros.
+## 3. Regras de Negócio Implementadas no Banco (Database Logic)
+| Regra | Implementação |
+|---|---|
+| **Limite de Refeições** | Trigger `trg_check_meal_limit` impede > (Prescrito + 2) registros/dia. |
+| **Soft Delete** | Coluna `deleted_at` em tabelas clínicas; RLS oculta registros deletados. |
+| **Auditoria** | Trigger `audit_trigger` em todas as tabelas grava histórico em `audit.unified_logs`. |
+| **Integridade de Ator** | Trigger `trg_protect_audit` impede alteração de quem criou o registro original. |
+
+## 4. Otimizações de Performance
+- **Índices GIST (Fuzzy):** Busca por nome de paciente otimizada para similaridade.
+- **Materialized Views:** `mv_gamification_ranking` para queries de ranking instantâneas.
+- **Partitioning:** Auditoria particionada mensalmente para escalabilidade infinita.
+
+## 5. Guia de Integração para Desenvolvedores
+1. **Sempre use `auth.uid()`:** Nunca passe o ID do usuário manualmente no `WHERE` se puder usar a política de RLS.
+2. **Tratamento de Erros:** O app deve capturar o erro `P0001` (Daily Limit Exceeded) para exibir o modal de gamificação.
+3. **Busca:** Utilize a função RPC `search_patients(term, clinic_id)` para tirar proveito do índice de similaridade.
+4. **Soft Delete:** Para deletar um log, faça um `UPDATE` definindo `deleted_at = NOW()`.
