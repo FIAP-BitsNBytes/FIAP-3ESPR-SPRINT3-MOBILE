@@ -1,8 +1,8 @@
 import { View, Text, StyleSheet } from 'react-native';
-import { Star } from 'lucide-react-native';
+import { Zap } from 'lucide-react-native';
 import { XPProgressBar } from './XPProgressBar';
 import { StreakBadge } from './StreakBadge';
-import { colors, spacing, radius, fontSize } from '@/shared/theme';
+import { colors, spacing, radius, fontSize, shadow } from '@/shared/theme';
 import { LEVEL_TITLES } from '@/shared/domain/gamification';
 
 interface LevelCardProps {
@@ -18,20 +18,23 @@ export function LevelCard({ level, currentXP, maxXP, streakDays, name }: LevelCa
 
   return (
     <View style={styles.card}>
+      <View style={styles.topAccent} />
       <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>Olá, {name.split(' ')[0]}</Text>
+        <View style={styles.headerLeft}>
+          <Text style={styles.greeting}>Olá, {name.split(' ')[0]} 👋</Text>
           <Text style={styles.title}>{title}</Text>
         </View>
         <View style={styles.levelBadge}>
-          <Star size={16} color={colors.primary} />
+          <Zap size={14} color={colors.primary} fill={colors.primary} />
           <Text style={styles.levelNum}>{level}</Text>
         </View>
       </View>
+
       <XPProgressBar currentXP={currentXP} maxXP={maxXP} level={level} />
-      <View style={styles.streak}>
+
+      <View style={styles.footer}>
         <StreakBadge days={streakDays} />
-        <Text style={styles.streakLabel}>sequência atual</Text>
+        <Text style={styles.streakLabel}>sequência ativa</Text>
       </View>
     </View>
   );
@@ -40,22 +43,43 @@ export function LevelCard({ level, currentXP, maxXP, streakDays, name }: LevelCa
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
-    borderRadius: radius.lg,
+    borderRadius: radius.xl,
     padding: spacing.lg,
     gap: spacing.md,
+    overflow: 'hidden',
+    ...shadow.md,
   },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  topAccent: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+    backgroundColor: colors.primary,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginTop: spacing.xs,
+  },
+  headerLeft: { gap: 2 },
   greeting: { color: colors.muted, fontSize: fontSize.sm },
-  title: { color: colors.text, fontSize: fontSize.xl, fontWeight: '700' },
+  title: { color: colors.text, fontSize: fontSize.xl, fontWeight: '800', letterSpacing: -0.5 },
   levelBadge: {
-    backgroundColor: colors.surfaceHigh,
+    backgroundColor: colors.primaryGlow,
     borderRadius: radius.full,
-    padding: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: colors.primary + '44',
   },
-  levelNum: { color: colors.primary, fontWeight: '700', fontSize: fontSize.md },
-  streak: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  streakLabel: { color: colors.muted, fontSize: fontSize.sm },
+  levelNum: { color: colors.primary, fontWeight: '800', fontSize: fontSize.md },
+  footer: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  streakLabel: { color: colors.muted, fontSize: fontSize.xs },
 });

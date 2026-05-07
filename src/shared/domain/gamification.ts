@@ -19,11 +19,14 @@ export interface GamificationState {
   badges: Badge[];
 }
 
+// Matches award_xp() DB formula: level = floor(experience / 500) + 1, capped at 100
 export const calculateLevel = (experience: number): number => {
-  return Math.floor(experience / 1000) + 1;
+  return Math.min(Math.floor(experience / 500) + 1, 100);
 };
 
-export const EXPERIENCE_PER_POINT = 10;
+export const nextLevelExperience = (level: number): number => {
+  return level * 500;
+};
 
 export const LEVEL_TITLES: Record<number, string> = {
   1: 'Iniciante',
