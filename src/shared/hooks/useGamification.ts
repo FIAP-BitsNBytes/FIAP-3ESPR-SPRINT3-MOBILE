@@ -8,7 +8,10 @@ interface GamificationHookState extends GamificationState {
   error: string | null;
 }
 
-export const useGamification = (): GamificationHookState => {
+const uniqueChannelName = (prefix: string, patientId: string) =>
+  `${prefix}-${patientId}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+export const useGamification = (patientId?: string | null): GamificationHookState => {
   const [state, setState] = useState<GamificationHookState>({
     stats: {
       points: 0,
@@ -24,19 +27,13 @@ export const useGamification = (): GamificationHookState => {
 
   useEffect(() => {
     let cancelled = false;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
 
-    const fetch = async () => {
-      const userId = await getCachedUserId();
-
-      if (!userId) {
-        setState(prev => ({ ...prev, isLoading: false }));
-        return;
-      }
-
+    const fetch = async (targetPatientId: string) => {
       const { data, error } = await supabase
         .from('gamification_stats')
         .select('points, level, experience, streak_days')
-        .eq('patient_id', userId)
+        .eq('patient_id', targetPatientId)
         .maybeSingle();
 
       if (cancelled) return;
@@ -66,9 +63,37 @@ export const useGamification = (): GamificationHookState => {
       });
     };
 
-    fetch();
-    return () => { cancelled = true; };
-  }, []);
+    const initialize = async () => {
+      const userId = await getCachedUserId();
+      const targetPatientId = patientId === null ? null : (patientId ?? userId);
+
+      if (!targetPatientId) {
+        setState(prev => ({ ...prev, isLoading: false }));
+        return;
+      }
+
+      await fetch(targetPatientId);
+
+      if (cancelled) return;
+
+      channel = supabase
+        .channel(uniqueChannelName('gamification', targetPatientId))
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'gamification_stats', filter: `patient_id=eq.${targetPatientId}` },
+          () => { void fetch(targetPatientId); }
+        )
+        .subscribe();
+    };
+
+    initialize();
+    return () => {
+      cancelled = true;
+      if (channel) {
+        void supabase.removeChannel(channel);
+      }
+    };
+  }, [patientId]);
 
   return state;
 };

@@ -1,7 +1,7 @@
 import { Tabs, Redirect } from 'expo-router';
 import {
   Home, UtensilsCrossed, Calendar, User,
-  Users, Trophy, LayoutDashboard, Stethoscope,
+  Users, Trophy, LayoutDashboard, Stethoscope, TrendingUp, Building2
 } from 'lucide-react-native';
 import { ActivityIndicator, View, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,9 +24,7 @@ function useTabScreenOptions() {
       height: 56 + bottomPad,
       paddingBottom: bottomPad,
       paddingTop: 8,
-      // Android elevation
       elevation: 16,
-      // iOS shadow
       shadowColor: '#000',
       shadowOffset: { width: 0, height: -4 },
       shadowOpacity: 0.25,
@@ -42,18 +40,25 @@ function useTabScreenOptions() {
 
 const HIDDEN = { href: null } as const;
 
-function PatientTabs() {
+function PatientTabs({ patientId }: { patientId: string }) {
   const screenOptions = useTabScreenOptions();
   return (
     <Tabs screenOptions={screenOptions}>
       <Tabs.Screen name="home" options={{ title: 'Home', tabBarIcon: ({ color }) => <Home size={ICON_SIZE} color={color} /> }} />
       <Tabs.Screen name="nutrition" options={{ title: 'Nutrição', tabBarIcon: ({ color }) => <UtensilsCrossed size={ICON_SIZE} color={color} /> }} />
+      <Tabs.Screen
+        name="progress"
+        initialParams={{ patientId }}
+        options={{ title: 'Progresso', tabBarIcon: ({ color }) => <TrendingUp size={ICON_SIZE} color={color} /> }}
+      />
       <Tabs.Screen name="schedule" options={{ title: 'Agenda', tabBarIcon: ({ color }) => <Calendar size={ICON_SIZE} color={color} /> }} />
       <Tabs.Screen name="profile" options={{ title: 'Perfil', tabBarIcon: ({ color }) => <User size={ICON_SIZE} color={color} /> }} />
       <Tabs.Screen name="index" options={HIDDEN} />
       <Tabs.Screen name="patients" options={HIDDEN} />
       <Tabs.Screen name="ranking" options={HIDDEN} />
       <Tabs.Screen name="nutritionists" options={HIDDEN} />
+      <Tabs.Screen name="clinic-settings" options={HIDDEN} />
+      <Tabs.Screen name="clinic-audit" options={HIDDEN} />
     </Tabs>
   );
 }
@@ -69,7 +74,10 @@ function NutritionistTabs() {
       <Tabs.Screen name="profile" options={{ title: 'Perfil', tabBarIcon: ({ color }) => <User size={ICON_SIZE} color={color} /> }} />
       <Tabs.Screen name="index" options={HIDDEN} />
       <Tabs.Screen name="nutrition" options={HIDDEN} />
+      <Tabs.Screen name="progress" options={HIDDEN} />
       <Tabs.Screen name="nutritionists" options={HIDDEN} />
+      <Tabs.Screen name="clinic-settings" options={HIDDEN} />
+      <Tabs.Screen name="clinic-audit" options={HIDDEN} />
     </Tabs>
   );
 }
@@ -80,12 +88,15 @@ function AdminTabs() {
     <Tabs screenOptions={screenOptions}>
       <Tabs.Screen name="home" options={{ title: 'Dashboard', tabBarIcon: ({ color }) => <LayoutDashboard size={ICON_SIZE} color={color} /> }} />
       <Tabs.Screen name="nutritionists" options={{ title: 'Nutricionistas', tabBarIcon: ({ color }) => <Stethoscope size={ICON_SIZE} color={color} /> }} />
+      <Tabs.Screen name="clinic-settings" options={{ title: 'Clínica', tabBarIcon: ({ color }) => <Building2 size={ICON_SIZE} color={color} /> }} />
       <Tabs.Screen name="schedule" options={{ title: 'Agenda', tabBarIcon: ({ color }) => <Calendar size={ICON_SIZE} color={color} /> }} />
       <Tabs.Screen name="profile" options={{ title: 'Perfil', tabBarIcon: ({ color }) => <User size={ICON_SIZE} color={color} /> }} />
       <Tabs.Screen name="index" options={HIDDEN} />
       <Tabs.Screen name="nutrition" options={HIDDEN} />
+      <Tabs.Screen name="progress" options={HIDDEN} />
       <Tabs.Screen name="patients" options={HIDDEN} />
       <Tabs.Screen name="ranking" options={HIDDEN} />
+      <Tabs.Screen name="clinic-audit" options={HIDDEN} />
     </Tabs>
   );
 }
@@ -104,5 +115,5 @@ export default function TabLayout() {
   if (!user) return <Redirect href="/(auth)/login" />;
   if (user.role === 'NUTRITIONIST') return <NutritionistTabs />;
   if (user.role === 'ADMIN') return <AdminTabs />;
-  return <PatientTabs />;
+  return <PatientTabs patientId={user.id} />;
 }

@@ -2,12 +2,14 @@ import React, { useState } from 'react';
 import { FlatList, View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Plus, UserPlus } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 import { PatientCard } from '@/shared/components/ui/PatientCard';
 import { colors, spacing, radius, fontSize } from '@/shared/theme';
 import { useClinicPatients } from '../hooks/useClinicPatients';
 import { useInviteUser } from '@/shared/hooks/useInviteUser';
 
 export function NutritionistPatientsScreen() {
+  const router = useRouter();
   const { patients, isLoading, refresh } = useClinicPatients();
   const { inviteUser, isInviting } = useInviteUser();
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -43,7 +45,12 @@ export function NutritionistPatientsScreen() {
         keyExtractor={item => item.id}
         contentContainerStyle={styles.list}
         ListHeaderComponent={<Text style={styles.title}>Meus Pacientes</Text>}
-        renderItem={({ item }) => <PatientCard {...item} />}
+        renderItem={({ item }) => (
+          <PatientCard
+            {...item}
+            onPress={() => router.push(`/(tabs)/progress?patientId=${item.id}`)}
+          />
+        )}
         ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
         refreshing={isLoading}
         onRefresh={refresh}

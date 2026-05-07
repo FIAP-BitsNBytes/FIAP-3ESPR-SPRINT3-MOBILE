@@ -7,6 +7,7 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { Plus, TrendingUp, Droplets, Beef } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 import { LevelCard } from '@/shared/components/gamification/LevelCard';
 import { StatCard } from '@/shared/components/ui/StatCard';
 import { colors, spacing, radius, fontSize, shadow } from '@/shared/theme';
@@ -55,6 +56,7 @@ function SecondaryButton({ label, icon: Icon, onPress }: { label: string; icon: 
 const CALORIE_GOAL = 2000;
 
 export function PatientHomeScreen() {
+  const router = useRouter();
   const { user } = useAuthContext();
   const { stats, isLoading: gamLoading } = useGamification();
   const { totalCalories, waterMl } = useTodayLogs();
@@ -102,7 +104,7 @@ export function PatientHomeScreen() {
 
         <View style={styles.actions}>
           <PrimaryButton label="Registrar Refeição" icon={Plus} />
-          <SecondaryButton label="Ver Evolução" icon={TrendingUp} />
+          <SecondaryButton label="Ver Evolução" icon={TrendingUp} onPress={() => router.push(`/(tabs)/progress?patientId=${user.id}`)} />
         </View>
       </ScrollView>
     </SafeAreaView>
