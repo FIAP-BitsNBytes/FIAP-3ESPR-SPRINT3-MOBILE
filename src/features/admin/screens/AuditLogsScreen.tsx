@@ -202,8 +202,8 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: colors.surface,
-    borderTopLeftRadius: radius.xxl,
-    borderTopRightRadius: radius.xxl,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
     height: '80%',
     padding: spacing.xl,
   },

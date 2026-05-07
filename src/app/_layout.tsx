@@ -60,6 +60,7 @@ function RootLayoutNav() {
           <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
           <Stack.Screen name="nutritionist-patients" options={{ presentation: 'modal', headerShown: false }} />
           <Stack.Screen name="patient-progress" options={{ headerShown: false }} />
+          <Stack.Screen name="meal-plan" options={{ headerShown: false }} />
         </Stack>
       </ThemeProvider>
     </AuthProvider>

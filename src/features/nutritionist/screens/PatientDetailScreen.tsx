@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, Flame, Target, TrendingUp, Trophy, Utensils } from 'lucide-react-native';
+import { ArrowLeft, ClipboardList, Flame, Target, TrendingUp, Trophy, Utensils } from 'lucide-react-native';
 import { LevelCard } from '@/shared/components/gamification/LevelCard';
 import { StatCard } from '@/shared/components/ui/StatCard';
 import { appStyles, colors, fontSize, radius, shadow, spacing } from '@/shared/theme';
@@ -108,6 +108,12 @@ export function NutritionistPatientDetailScreen() {
           <Text style={appStyles.dashboardTitle} numberOfLines={1}>{patientName}</Text>
           <Text style={appStyles.dashboardSubtitle}>Evolução e progresso</Text>
         </View>
+        <TouchableOpacity
+          style={styles.mealPlanBtn}
+          onPress={() => router.push(`/meal-plan?patientId=${patientId}&name=${encodeURIComponent(patientName)}`)}
+        >
+          <ClipboardList size={18} color={colors.primary} />
+        </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -196,6 +202,16 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: radius.md,
     backgroundColor: colors.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  mealPlanBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.md,
+    backgroundColor: colors.primaryGlow,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,

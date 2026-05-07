@@ -15,8 +15,8 @@ export const useProfileUpdate = () => {
 
     const { error: err } = await supabase.rpc('update_user_profile', {
       p_name: updates.name,
-      p_phone: updates.phone,
-      p_cpf: updates.cpf
+      p_phone: updates.phone ?? '',
+      p_cpf: updates.cpf ?? undefined
     });
 
     if (err) {

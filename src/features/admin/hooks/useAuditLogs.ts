@@ -23,7 +23,8 @@ export const useAuditLogs = () => {
       // Note: unified_logs is in 'audit' schema, so we access it via the specific table name
       // If the client is configured only for 'public', we might need a RPC or raw query,
       // but usually Supabase client can access other schemas if permissions allow.
-      const { data, error: fetchErr } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error: fetchErr } = await (supabase as any)
         .schema('audit')
         .from('unified_logs')
         .select('*')
@@ -31,7 +32,7 @@ export const useAuditLogs = () => {
         .limit(50);
 
       if (fetchErr) throw fetchErr;
-      setLogs(data as AuditLog[]);
+      setLogs((data as unknown) as AuditLog[]);
     } catch (err: any) {
       console.error('Audit Log Fetch Error:', err);
       setError(err.message);
