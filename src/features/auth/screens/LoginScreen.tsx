@@ -9,7 +9,6 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
 import { LockKeyhole, Mail, ShieldCheck, Stethoscope } from 'lucide-react-native';
 import { useAuthContext } from '../context/AuthContext';
 import { appStyles } from '@/shared/theme/appStyles';
@@ -19,7 +18,6 @@ type FocusedField = 'email' | 'password' | null;
 
 export function LoginScreen() {
   const { login } = useAuthContext();
-  const router = useRouter();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -38,7 +36,7 @@ export function LoginScreen() {
 
     try {
       await login(email.trim(), password);
-      router.replace('/(tabs)');
+      // AuthGate em _layout.tsx navega para /(tabs) via onAuthStateChange
     } catch {
       setError('E-mail ou senha invalidos.');
     } finally {

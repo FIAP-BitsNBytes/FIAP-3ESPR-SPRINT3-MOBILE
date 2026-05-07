@@ -58,6 +58,8 @@ function RootLayoutNav() {
           <Stack.Screen name="accept-invite" options={{ headerShown: false }} />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="nutritionist-patients" options={{ presentation: 'modal', headerShown: false }} />
+          <Stack.Screen name="patient-progress" options={{ headerShown: false }} />
         </Stack>
       </ThemeProvider>
     </AuthProvider>
@@ -72,6 +74,10 @@ function AuthGate() {
   useEffect(() => {
     if (isLoading) return;
     if (pathname === '/accept-invite') return;
+    if (isAuthenticated && (pathname === '/login' || pathname.startsWith('/(auth)'))) {
+      router.replace('/(tabs)');
+      return;
+    }
     if (!isAuthenticated) {
       router.replace('/(auth)/login');
     }
