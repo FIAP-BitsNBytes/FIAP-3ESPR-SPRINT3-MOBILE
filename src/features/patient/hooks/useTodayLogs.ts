@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/shared/infrastructure/supabase/client';
 import { LogType } from '@/shared/infrastructure/supabase/database.types';
-import { getCachedUserId } from '@/shared/infrastructure/supabase/auth-cache';
+import { useAuthContext } from '@/features/auth/context/AuthContext';
+import { todayIso } from '@/shared/utils/date';
+import { uniqueChannelName } from '@/shared/utils/realtime';
 
 export interface MealLogItem {
   id: string;
@@ -21,15 +23,8 @@ interface TodayLogsState {
   error: string | null;
 }
 
-const todayIso = () => {
-  const d = new Date();
-  return d.toISOString().split('T')[0];
-};
-
-const uniqueChannelName = (prefix: string, patientId: string) =>
-  `${prefix}-${patientId}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-
 export const useTodayLogs = (patientId?: string | null): TodayLogsState => {
+  const { user } = useAuthContext();
   const [state, setState] = useState<TodayLogsState>({
     meals: [],
     totalCalories: 0,
@@ -83,36 +78,30 @@ export const useTodayLogs = (patientId?: string | null): TodayLogsState => {
       setState({ meals, totalCalories, waterMl, isLoading: false, error: null });
     };
 
-    const initialize = async () => {
-      const userId = await getCachedUserId();
-      const targetPatientId = patientId === null ? null : (patientId ?? userId);
-      if (!targetPatientId) {
-        setState(prev => ({ ...prev, isLoading: false }));
-        return;
-      }
+    const targetPatientId = patientId === null ? null : (patientId ?? user?.id);
+    if (!targetPatientId) {
+      if (!cancelled) setState(prev => ({ ...prev, isLoading: false }));
+      return;
+    }
 
-      await fetch(targetPatientId);
+    fetch(targetPatientId);
 
-      if (cancelled) return;
+    channel = supabase
+      .channel(uniqueChannelName('today-logs', targetPatientId))
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'meal_logs', filter: `patient_id=eq.${targetPatientId}` },
+        () => { void fetch(targetPatientId); }
+      )
+      .subscribe();
 
-      channel = supabase
-        .channel(uniqueChannelName('today-logs', targetPatientId))
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'meal_logs', filter: `patient_id=eq.${targetPatientId}` },
-          () => { void fetch(targetPatientId); }
-        )
-        .subscribe();
-    };
-
-    initialize();
     return () => {
       cancelled = true;
       if (channel) {
         void supabase.removeChannel(channel);
       }
     };
-  }, [patientId]);
+  }, [patientId, user?.id]);
 
   return state;
 };

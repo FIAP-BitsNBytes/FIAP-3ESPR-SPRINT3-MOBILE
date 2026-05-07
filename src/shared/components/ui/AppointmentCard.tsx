@@ -110,5 +110,5 @@ const styles = StyleSheet.create({
   badgeText: { fontSize: fontSize.xs, fontWeight: '700' },
   personRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   name: { color: colors.text, fontSize: fontSize.md, fontWeight: '700' },
-  type: { color: colors.muted, fontSize: fontSize.sm },
+  type: { color: colors.textSecondary, fontSize: fontSize.sm, fontWeight: '600' },
 });

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FlatList, View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, ActivityIndicator, Alert } from 'react-native';
+import { FlatList, View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Plus, UserPlus } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
@@ -7,18 +7,25 @@ import { PatientCard } from '@/shared/components/ui/PatientCard';
 import { colors, spacing, radius, fontSize } from '@/shared/theme';
 import { useClinicPatients } from '../hooks/useClinicPatients';
 import { useInviteUser } from '@/shared/hooks/useInviteUser';
+import { InlineStatus } from '@/shared/components/ui/InlineStatus';
 
 export function NutritionistPatientsScreen() {
   const router = useRouter();
   const { patients, isLoading, refresh } = useClinicPatients();
   const { inviteUser, isInviting } = useInviteUser();
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   
   const [form, setForm] = useState({ name: '', email: '' });
 
+  const openInviteModal = () => {
+    setFeedback(null);
+    setIsModalVisible(true);
+  };
+
   const handleInvite = async () => {
     if (!form.name || !form.email) {
-      Alert.alert('Erro', 'Preencha todos os campos');
+      setFeedback({ type: 'error', message: 'Preencha nome e e-mail antes de enviar.' });
       return;
     }
 
@@ -29,12 +36,12 @@ export function NutritionistPatientsScreen() {
     });
 
     if (result.success) {
-      Alert.alert('Sucesso', 'Paciente convidado com sucesso!');
-      setIsModalVisible(false);
+      setFeedback(null);
       setForm({ name: '', email: '' });
+      setIsModalVisible(false);
       refresh();
     } else {
-      Alert.alert('Erro ao convidar', 'Verifique os dados ou tente novamente.');
+      setFeedback({ type: 'error', message: result.error });
     }
   };
 
@@ -65,7 +72,7 @@ export function NutritionistPatientsScreen() {
 
       <TouchableOpacity 
         style={styles.fab} 
-        onPress={() => setIsModalVisible(true)}
+        onPress={openInviteModal}
         activeOpacity={0.8}
       >
         <Plus color="white" size={24} />
@@ -78,6 +85,8 @@ export function NutritionistPatientsScreen() {
               <UserPlus color={colors.primary} size={24} />
               <Text style={styles.modalTitle}>Convidar Paciente</Text>
             </View>
+
+            {feedback ? <InlineStatus variant={feedback.type} message={feedback.message} /> : null}
             
             <TextInput 
               style={styles.input} 
@@ -100,6 +109,7 @@ export function NutritionistPatientsScreen() {
               <TouchableOpacity 
                 style={[styles.button, styles.cancelButton]} 
                 onPress={() => setIsModalVisible(false)}
+                disabled={isInviting}
               >
                 <Text style={styles.cancelButtonText}>Cancelar</Text>
               </TouchableOpacity>

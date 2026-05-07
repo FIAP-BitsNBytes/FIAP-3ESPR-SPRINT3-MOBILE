@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/shared/infrastructure/supabase/client';
 import { AppointmentStatus } from '@/shared/infrastructure/supabase/database.types';
 import { UserRole } from '@/features/auth/domain/auth';
-import { getCachedUserId } from '@/shared/infrastructure/supabase/auth-cache';
+import { useAuthContext } from '@/features/auth/context/AuthContext';
+import { uniqueChannelName } from '@/shared/utils/realtime';
 
 export interface AppointmentItem {
   id: string;
@@ -19,7 +20,9 @@ interface UseAppointmentsState {
   error: string | null;
 }
 
-export const useAppointments = (role: UserRole): UseAppointmentsState => {
+export const useAppointments = (role?: UserRole): UseAppointmentsState => {
+  const { user } = useAuthContext();
+  const activeRole = role ?? user?.role;
   const [state, setState] = useState<UseAppointmentsState>({
     appointments: [],
     isLoading: true,
@@ -28,11 +31,11 @@ export const useAppointments = (role: UserRole): UseAppointmentsState => {
 
   useEffect(() => {
     let cancelled = false;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
 
     const fetch = async () => {
-      const userId = await getCachedUserId();
-      if (!userId) {
-        setState({ appointments: [], isLoading: false, error: null });
+      if (!user?.id || !activeRole) {
+        if (!cancelled) setState({ appointments: [], isLoading: false, error: null });
         return;
       }
 
@@ -47,10 +50,10 @@ export const useAppointments = (role: UserRole): UseAppointmentsState => {
           nutritionist:profiles!appointments_nutritionist_id_fkey(name)
         `);
 
-      if (role === 'PATIENT') {
-        query = query.eq('patient_id', userId);
-      } else if (role === 'NUTRITIONIST') {
-        query = query.eq('nutritionist_id', userId);
+      if (activeRole === 'PATIENT') {
+        query = query.eq('patient_id', user.id);
+      } else if (activeRole === 'NUTRITIONIST') {
+        query = query.eq('nutritionist_id', user.id);
       }
 
       const { data, error } = await query.order('scheduled_at', { ascending: true });
@@ -70,8 +73,8 @@ export const useAppointments = (role: UserRole): UseAppointmentsState => {
           scheduledAt: a.scheduled_at,
           status: a.status,
           type: a.type,
-          patientName: role !== 'PATIENT' ? (patient?.name ?? undefined) : undefined,
-          nutritionistName: role !== 'NUTRITIONIST' ? (nutritionist?.name ?? undefined) : undefined,
+          patientName: activeRole !== 'PATIENT' ? (patient?.name ?? undefined) : undefined,
+          nutritionistName: activeRole !== 'NUTRITIONIST' ? (nutritionist?.name ?? undefined) : undefined,
         };
       });
 
@@ -79,8 +82,29 @@ export const useAppointments = (role: UserRole): UseAppointmentsState => {
     };
 
     fetch();
-    return () => { cancelled = true; };
-  }, [role]);
+
+    if (user?.id && activeRole) {
+      const filter = activeRole === 'PATIENT' 
+        ? `patient_id=eq.${user.id}` 
+        : `nutritionist_id=eq.${user.id}`;
+
+      channel = supabase
+        .channel(uniqueChannelName('appointments', user.id))
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'appointments', filter },
+          () => { void fetch(); }
+        )
+        .subscribe();
+    }
+
+    return () => { 
+      cancelled = true;
+      if (channel) {
+        void supabase.removeChannel(channel);
+      }
+    };
+  }, [activeRole, user?.id]);
 
   return state;
 };

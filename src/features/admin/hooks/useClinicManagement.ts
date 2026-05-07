@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/shared/infrastructure/supabase/client';
-import { getCachedUserId } from '@/shared/infrastructure/supabase/auth-cache';
+import { useAuthContext } from '@/features/auth/context/AuthContext';
+import { uniqueChannelName } from '@/shared/utils/realtime';
 
 export interface ClinicData {
   id: string;
@@ -16,6 +17,7 @@ interface UseClinicManagementState {
 }
 
 export const useClinicManagement = () => {
+  const { user } = useAuthContext();
   const [state, setState] = useState<UseClinicManagementState>({
     clinic: null,
     isLoading: true,
@@ -24,31 +26,18 @@ export const useClinicManagement = () => {
   });
 
   const fetchClinic = async () => {
-    setState(prev => ({ ...prev, isLoading: true, error: null }));
-    
-    const userId = await getCachedUserId();
-    if (!userId) {
-      setState(prev => ({ ...prev, isLoading: false, error: 'Usuário não autenticado.' }));
-      return;
-    }
-
-    // 1. Get current user's clinic ID with explicit UUID filter
-    const { data: profile, error: profileErr } = await supabase
-      .from('profiles')
-      .select('clinic_id')
-      .eq('id', userId)
-      .maybeSingle();
-
-    if (profileErr || !profile?.clinic_id) {
+    if (!user?.clinicId) {
       setState(prev => ({ ...prev, isLoading: false, error: 'Não foi possível encontrar sua clínica.' }));
       return;
     }
 
-    // 2. Fetch clinic details
+    setState(prev => ({ ...prev, isLoading: true, error: null }));
+    
+    // Fetch clinic details
     const { data: clinic, error: clinicErr } = await supabase
       .from('clinics')
       .select('id, name, phone')
-      .eq('id', profile.clinic_id)
+      .eq('id', user.clinicId)
       .single();
 
     if (clinicErr) {
@@ -87,8 +76,29 @@ export const useClinicManagement = () => {
   };
 
   useEffect(() => {
+    let cancelled = false;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
     fetchClinic();
-  }, []);
+
+    if (user?.clinicId) {
+      channel = supabase
+        .channel(uniqueChannelName('clinic-mgmt', user.clinicId))
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'clinics', filter: `id=eq.${user.clinicId}` },
+          () => { if (!cancelled) void fetchClinic(); }
+        )
+        .subscribe();
+    }
+
+    return () => {
+      cancelled = true;
+      if (channel) {
+        void supabase.removeChannel(channel);
+      }
+    };
+  }, [user?.clinicId]);
 
   return { ...state, updateClinic, refresh: fetchClinic };
 };

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/shared/infrastructure/supabase/client';
+import { uniqueChannelName } from '@/shared/utils/realtime';
 
 export interface RankingEntry {
   patientId: string;
@@ -26,6 +27,7 @@ export const useGamificationRanking = (limit = 50): UseGamificationRankingState 
 
   useEffect(() => {
     let cancelled = false;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
 
     const fetch = async () => {
       const { data, error } = await supabase.rpc('get_gamification_ranking', { p_limit: limit });
@@ -51,7 +53,22 @@ export const useGamificationRanking = (limit = 50): UseGamificationRankingState 
     };
 
     fetch();
-    return () => { cancelled = true; };
+
+    channel = supabase
+      .channel(uniqueChannelName('ranking'))
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'gamification_stats' },
+        () => { void fetch(); }
+      )
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      if (channel) {
+        void supabase.removeChannel(channel);
+      }
+    };
   }, [limit]);
 
   return state;

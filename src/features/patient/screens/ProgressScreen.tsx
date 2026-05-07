@@ -111,15 +111,16 @@ export function PatientProgressScreen() {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
         <View style={styles.blockedState}>
-          <Text style={styles.title}>Acesso restrito</Text>
+          <Text style={styles.title}>Acesso Restrito</Text>
           <Text style={styles.subtitle}>
-            A progressão só pode ser vista pelo próprio paciente ou pelo nutricionista responsável.
+            Você não tem permissão para visualizar o progresso deste paciente.
           </Text>
         </View>
       </SafeAreaView>
     );
   }
 
+  // The rest of the rendering when allowed
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>

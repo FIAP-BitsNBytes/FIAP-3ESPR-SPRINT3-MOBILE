@@ -84,6 +84,6 @@ const styles = StyleSheet.create({
   info: { flex: 1, gap: 3 },
   name: { color: colors.text, fontSize: fontSize.md, fontWeight: '600' },
   stats: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  stat: { color: colors.muted, fontSize: fontSize.xs },
-  dot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: colors.muted },
+  stat: { color: colors.textSecondary, fontSize: fontSize.xs, fontWeight: '700' },
+  dot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: colors.border },
 });

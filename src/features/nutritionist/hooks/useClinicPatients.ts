@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/shared/infrastructure/supabase/client';
-import { getCachedUserId } from '@/shared/infrastructure/supabase/auth-cache';
+import { useAuthContext } from '@/features/auth/context/AuthContext';
+import { uniqueChannelName } from '@/shared/utils/realtime';
 
 export interface ClinicPatient {
   id: string;
@@ -19,6 +20,7 @@ interface UseClinicPatientsState {
 }
 
 export const useClinicPatients = () => {
+  const { user } = useAuthContext();
   const [state, setState] = useState<UseClinicPatientsState>({
     patients: [],
     totalCount: 0,
@@ -28,27 +30,12 @@ export const useClinicPatients = () => {
   });
 
   const fetch = async () => {
-    setState(prev => ({ ...prev, isLoading: true }));
-    const userId = await getCachedUserId();
-    if (!userId) {
+    if (!user?.clinicId) {
       setState(prev => ({ ...prev, isLoading: false }));
       return;
     }
 
-    // 1. Get current user clinic with explicit UUID
-    const { data: profileData } = await supabase
-      .from('profiles')
-      .select('clinic_id')
-      .eq('id', userId)
-      .maybeSingle();
-    
-    const clinicId = profileData?.clinic_id;
-    if (!clinicId) {
-      setState(prev => ({ ...prev, isLoading: false, error: 'Clínica não encontrada' }));
-      return;
-    }
-
-    // 2. Query patients and their stats
+    // Query patients and their stats
     const { data, error } = await supabase
       .from('profiles')
       .select(`
@@ -61,7 +48,7 @@ export const useClinicPatients = () => {
         )
       `)
       .eq('role', 'PATIENT')
-      .eq('clinic_id', clinicId)
+      .eq('clinic_id', user.clinicId)
       .order('name', { ascending: true });
 
     if (error || !data) {
@@ -92,8 +79,40 @@ export const useClinicPatients = () => {
   };
 
   useEffect(() => {
+    let cancelled = false;
+    let channelStats: ReturnType<typeof supabase.channel> | null = null;
+    let channelProfiles: ReturnType<typeof supabase.channel> | null = null;
+
     fetch();
-  }, []);
+
+    if (user?.clinicId) {
+      // Monitora mudanças em gamification_stats
+      channelStats = supabase
+        .channel(uniqueChannelName('clinic-stats', user.clinicId))
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'gamification_stats' },
+          () => { if (!cancelled) void fetch(); }
+        )
+        .subscribe();
+
+      // Monitora novos pacientes ou mudanças de perfil na clínica
+      channelProfiles = supabase
+        .channel(uniqueChannelName('clinic-profiles', user.clinicId))
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'profiles', filter: `clinic_id=eq.${user.clinicId}` },
+          () => { if (!cancelled) void fetch(); }
+        )
+        .subscribe();
+    }
+
+    return () => {
+      cancelled = true;
+      if (channelStats) void supabase.removeChannel(channelStats);
+      if (channelProfiles) void supabase.removeChannel(channelProfiles);
+    };
+  }, [user?.clinicId]);
 
   return { ...state, refresh: fetch };
 };

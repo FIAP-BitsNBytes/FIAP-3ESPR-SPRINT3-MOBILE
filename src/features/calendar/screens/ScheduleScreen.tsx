@@ -424,7 +424,7 @@ const styles = StyleSheet.create({
   },
   segmentButtonSelected: { backgroundColor: colors.primary },
   segmentText: { color: colors.textSecondary, fontSize: fontSize.sm, fontWeight: '800' },
-  segmentTextSelected: { color: colors.background },
+  segmentTextSelected: { color: colors.onPrimary },
   periodHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -469,9 +469,9 @@ const styles = StyleSheet.create({
   dayCellToday: { borderWidth: 1, borderColor: colors.primary },
   dayCellEmpty: { opacity: 0 },
   dayText: { color: colors.textSecondary, fontSize: fontSize.sm, fontWeight: '700' },
-  dayTextSelected: { color: colors.background },
+  dayTextSelected: { color: colors.onPrimary },
   dayDot: { width: 5, height: 5, borderRadius: radius.full, backgroundColor: colors.primary },
-  dayDotSelected: { backgroundColor: colors.background },
+  dayDotSelected: { backgroundColor: colors.onPrimary },
   timelineCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
@@ -514,7 +514,7 @@ const styles = StyleSheet.create({
   weekDayHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   weekDayName: { color: colors.text, fontSize: fontSize.md, fontWeight: '800' },
   weekDayDate: { color: colors.muted, fontSize: fontSize.xs, textTransform: 'capitalize' },
-  selectedDarkText: { color: colors.background },
+  selectedDarkText: { color: colors.onPrimary },
   weekCount: {
     minWidth: 28,
     borderRadius: radius.full,
@@ -526,7 +526,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingVertical: 2,
   },
-  weekCountSelected: { backgroundColor: colors.background, color: colors.primary },
+  weekCountSelected: { backgroundColor: colors.onPrimary, color: colors.primary },
   todayLabel: { color: colors.primary, fontSize: fontSize.xs, fontWeight: '900' },
   weekAppointmentText: { color: colors.textSecondary, fontSize: fontSize.sm },
   moreText: { color: colors.muted, fontSize: fontSize.xs, fontWeight: '700' },

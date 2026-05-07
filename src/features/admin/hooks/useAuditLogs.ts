@@ -40,7 +40,28 @@ export const useAuditLogs = () => {
     }
   };
 
-  useEffect(() => { fetchLogs(); }, []);
+  useEffect(() => {
+    let cancelled = false;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    fetchLogs();
+
+    channel = supabase
+      .channel('audit-logs-realtime')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'audit', table: 'unified_logs' },
+        () => { if (!cancelled) void fetchLogs(); }
+      )
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      if (channel) {
+        void supabase.removeChannel(channel);
+      }
+    };
+  }, []);
 
   return { logs, isLoading, error, refresh: fetchLogs };
 };

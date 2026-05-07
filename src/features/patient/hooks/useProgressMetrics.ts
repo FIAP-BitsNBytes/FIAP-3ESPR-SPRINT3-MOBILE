@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/shared/infrastructure/supabase/client';
 import { LogType } from '@/shared/infrastructure/supabase/database.types';
-import { getCachedUserId } from '@/shared/infrastructure/supabase/auth-cache';
+import { useAuthContext } from '@/features/auth/context/AuthContext';
+import { toDateKey } from '@/shared/utils/date';
+import { uniqueChannelName } from '@/shared/utils/realtime';
 
 export interface DailyProgressItem {
   dateKey: string;
@@ -26,8 +28,6 @@ interface ProgressLogRow {
   logged_at: string;
 }
 
-const toDateKey = (date: Date) => date.toISOString().split('T')[0];
-
 const buildLastSevenDays = () => {
   const today = new Date();
   return Array.from({ length: 7 }, (_, index) => {
@@ -41,10 +41,8 @@ const buildLastSevenDays = () => {
   });
 };
 
-const uniqueChannelName = (prefix: string, patientId: string) =>
-  `${prefix}-${patientId}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-
 export const useProgressMetrics = (patientId?: string | null): ProgressMetricsState => {
+  const { user } = useAuthContext();
   const baseDays = useMemo(buildLastSevenDays, []);
   const [state, setState] = useState<ProgressMetricsState>({
     days: baseDays.map(day => ({
@@ -125,36 +123,30 @@ export const useProgressMetrics = (patientId?: string | null): ProgressMetricsSt
       });
     };
 
-    const initialize = async () => {
-      const userId = await getCachedUserId();
-      const targetPatientId = patientId === null ? null : (patientId ?? userId);
-      if (!targetPatientId) {
-        setState(prev => ({ ...prev, isLoading: false }));
-        return;
-      }
+    const targetPatientId = patientId === null ? null : (patientId ?? user?.id);
+    if (!targetPatientId) {
+      if (!cancelled) setState(prev => ({ ...prev, isLoading: false }));
+      return;
+    }
 
-      await fetch(targetPatientId);
+    fetch(targetPatientId);
 
-      if (cancelled) return;
+    channel = supabase
+      .channel(uniqueChannelName('progress-metrics', targetPatientId))
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'meal_logs', filter: `patient_id=eq.${targetPatientId}` },
+        () => { void fetch(targetPatientId); }
+      )
+      .subscribe();
 
-      channel = supabase
-        .channel(uniqueChannelName('progress-metrics', targetPatientId))
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'meal_logs', filter: `patient_id=eq.${targetPatientId}` },
-          () => { void fetch(targetPatientId); }
-        )
-        .subscribe();
-    };
-
-    initialize();
     return () => {
       cancelled = true;
       if (channel) {
         void supabase.removeChannel(channel);
       }
     };
-  }, [baseDays, patientId]);
+  }, [baseDays, patientId, user?.id]);
 
   return state;
 };

@@ -54,7 +54,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
     padding: spacing.md,
-    gap: spacing.xs,
+    gap: spacing.sm,
     borderWidth: 1,
     borderColor: colors.border,
   },
@@ -66,6 +66,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.xs,
   },
-  value: { fontSize: fontSize.xl, fontWeight: '800' },
-  label: { color: colors.muted, fontSize: fontSize.xs },
+  value: { fontSize: fontSize.xl, fontWeight: '900' },
+  label: { color: colors.textSecondary, fontSize: fontSize.xs, fontWeight: '700' },
 });

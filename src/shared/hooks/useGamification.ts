@@ -1,17 +1,16 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/shared/infrastructure/supabase/client';
 import { GamificationState, nextLevelExperience } from '../domain/gamification';
-import { getCachedUserId } from '@/shared/infrastructure/supabase/auth-cache';
+import { useAuthContext } from '@/features/auth/context/AuthContext';
+import { uniqueChannelName } from '@/shared/utils/realtime';
 
 interface GamificationHookState extends GamificationState {
   isLoading: boolean;
   error: string | null;
 }
 
-const uniqueChannelName = (prefix: string, patientId: string) =>
-  `${prefix}-${patientId}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-
 export const useGamification = (patientId?: string | null): GamificationHookState => {
+  const { user } = useAuthContext();
   const [state, setState] = useState<GamificationHookState>({
     stats: {
       points: 0,
@@ -44,7 +43,6 @@ export const useGamification = (patientId?: string | null): GamificationHookStat
       }
 
       if (!data) {
-        // Fallback for new users or if stats haven't been initialized yet
         setState(prev => ({ ...prev, isLoading: false }));
         return;
       }
@@ -63,37 +61,31 @@ export const useGamification = (patientId?: string | null): GamificationHookStat
       });
     };
 
-    const initialize = async () => {
-      const userId = await getCachedUserId();
-      const targetPatientId = patientId === null ? null : (patientId ?? userId);
+    const targetPatientId = patientId === null ? null : (patientId ?? user?.id);
 
-      if (!targetPatientId) {
-        setState(prev => ({ ...prev, isLoading: false }));
-        return;
-      }
+    if (!targetPatientId) {
+      if (!cancelled) setState(prev => ({ ...prev, isLoading: false }));
+      return;
+    }
 
-      await fetch(targetPatientId);
+    fetch(targetPatientId);
 
-      if (cancelled) return;
+    channel = supabase
+      .channel(uniqueChannelName('gamification', targetPatientId))
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'gamification_stats', filter: `patient_id=eq.${targetPatientId}` },
+        () => { void fetch(targetPatientId); }
+      )
+      .subscribe();
 
-      channel = supabase
-        .channel(uniqueChannelName('gamification', targetPatientId))
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'gamification_stats', filter: `patient_id=eq.${targetPatientId}` },
-          () => { void fetch(targetPatientId); }
-        )
-        .subscribe();
-    };
-
-    initialize();
     return () => {
       cancelled = true;
       if (channel) {
         void supabase.removeChannel(channel);
       }
     };
-  }, [patientId]);
+  }, [patientId, user?.id]);
 
   return state;
 };

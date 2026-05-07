@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { FlatList, View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, ActivityIndicator, Alert } from 'react-native';
+import { FlatList, View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CheckCircle, XCircle, Clock, Plus, UserPlus } from 'lucide-react-native';
 import { colors, spacing, radius, fontSize } from '@/shared/theme';
 import type { NutritionistStatus, NutritionistRequest } from '../domain/admin';
 import { useNutritionists } from '../hooks/useNutritionists';
 import { useInviteUser } from '@/shared/hooks/useInviteUser';
+import { InlineStatus } from '@/shared/components/ui/InlineStatus';
 
 const STATUS_CONFIG = {
   APPROVED: { color: colors.success, Icon: CheckCircle, label: 'Aprovado' },
@@ -34,12 +35,18 @@ export function AdminNutritionistsScreen() {
   const { nutritionists, isLoading, refresh } = useNutritionists();
   const { inviteUser, isInviting } = useInviteUser();
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   
   const [form, setForm] = useState({ name: '', email: '', crm: '' });
 
+  const openInviteModal = () => {
+    setFeedback(null);
+    setIsModalVisible(true);
+  };
+
   const handleInvite = async () => {
     if (!form.name || !form.email || !form.crm) {
-      Alert.alert('Erro', 'Preencha todos os campos');
+      setFeedback({ type: 'error', message: 'Preencha nome, e-mail e CRM/CRN antes de enviar.' });
       return;
     }
 
@@ -51,12 +58,12 @@ export function AdminNutritionistsScreen() {
     });
 
     if (result.success) {
-      Alert.alert('Sucesso', 'Convite enviado com sucesso!');
-      setIsModalVisible(false);
+      setFeedback(null);
       setForm({ name: '', email: '', crm: '' });
+      setIsModalVisible(false);
       refresh();
     } else {
-      Alert.alert('Erro ao convidar', 'Verifique os dados ou tente novamente.');
+      setFeedback({ type: 'error', message: result.error });
     }
   };
 
@@ -82,7 +89,7 @@ export function AdminNutritionistsScreen() {
 
       <TouchableOpacity 
         style={styles.fab} 
-        onPress={() => setIsModalVisible(true)}
+        onPress={openInviteModal}
         activeOpacity={0.8}
       >
         <Plus color="white" size={24} />
@@ -95,6 +102,8 @@ export function AdminNutritionistsScreen() {
               <UserPlus color={colors.primary} size={24} />
               <Text style={styles.modalTitle}>Convidar Nutricionista</Text>
             </View>
+
+            {feedback ? <InlineStatus variant={feedback.type} message={feedback.message} /> : null}
             
             <TextInput 
               style={styles.input} 
@@ -124,6 +133,7 @@ export function AdminNutritionistsScreen() {
               <TouchableOpacity 
                 style={[styles.button, styles.cancelButton]} 
                 onPress={() => setIsModalVisible(false)}
+                disabled={isInviting}
               >
                 <Text style={styles.cancelButtonText}>Cancelar</Text>
               </TouchableOpacity>

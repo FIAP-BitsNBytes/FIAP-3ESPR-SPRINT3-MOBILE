@@ -27,7 +27,7 @@ function PrimaryButton({ label, icon: Icon, onPress }: { label: string; icon: ty
       accessibilityLabel={label}
     >
       <Animated.View style={[styles.actionBtn, animStyle]}>
-        <Icon size={20} color={colors.background} />
+        <Icon size={20} color={colors.onPrimary} />
         <Text style={styles.actionText}>{label}</Text>
       </Animated.View>
     </Pressable>
@@ -161,5 +161,5 @@ const styles = StyleSheet.create({
     shadowColor: 'transparent',
     elevation: 0,
   },
-  actionText: { color: colors.background, fontSize: fontSize.md, fontWeight: '700' },
+  actionText: { color: colors.onPrimary, fontSize: fontSize.md, fontWeight: '700' },
 });
