@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.7";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, x-user-id, apikey, content-type',
 };
 
 Deno.serve(async (req) => {
@@ -25,7 +25,11 @@ Deno.serve(async (req) => {
   );
 
   try {
-    const { email, name, role, crm_crn } = await req.json();
+    const { email, name, role, crm_crn, redirectTo } = await req.json();
+
+    if (!email || !name || !role) throw new Error("Missing invite fields");
+    if (!["NUTRITIONIST", "PATIENT"].includes(role)) throw new Error("Invalid invite role");
+    if (role === "NUTRITIONIST" && !crm_crn) throw new Error("CRM/CRN is required");
 
     // 1. Get caller info
     const { data: { user }, error: userErr } = await supabaseClient.auth.getUser();
@@ -38,15 +42,26 @@ Deno.serve(async (req) => {
       .single();
 
     if (!callerProfile) throw new Error("Caller profile not found");
+    if (!callerProfile.clinic_id) throw new Error("Caller is not linked to a clinic");
 
     // 2. Validate hierarchy
     if (callerProfile.role === "ADMIN" && role !== "NUTRITIONIST") throw new Error("Invalid hierarchy");
     if (callerProfile.role === "NUTRITIONIST" && role !== "PATIENT") throw new Error("Invalid hierarchy");
     if (callerProfile.role === "PATIENT") throw new Error("Patients cannot invite anyone");
+    if (!["ADMIN", "NUTRITIONIST"].includes(callerProfile.role)) throw new Error("Invalid caller role");
+
+    const requestOrigin = req.headers.get("Origin");
+    const inviteRedirectTo =
+      typeof redirectTo === "string" && redirectTo.length > 0
+        ? redirectTo
+        : requestOrigin
+          ? `${requestOrigin}/accept-invite`
+          : undefined;
 
     // 3. Invite User to Auth
     const { data: inviteData, error: inviteErr } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-      data: { full_name: name }
+      data: { full_name: name },
+      redirectTo: inviteRedirectTo,
     });
     if (inviteErr) throw inviteErr;
 
