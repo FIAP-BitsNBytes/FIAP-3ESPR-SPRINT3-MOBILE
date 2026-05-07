@@ -10,7 +10,14 @@
       "mcp__supabase__apply_migration",
       "Bash(python3 *)",
       "Bash(npx tsc *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(claude mcp *)",
+      "Bash(git rm *)",
+      "Bash(git add *)",
+      "Bash(git restore *)",
+      "mcp__supabase__get_advisors",
+      "mcp__supabase__execute_sql",
+      "mcp__supabase__generate_typescript_types"
     ]
   },
   "enableAllProjectMcpServers": true,
