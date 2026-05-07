@@ -17,7 +17,13 @@
       "Bash(git restore *)",
       "mcp__supabase__get_advisors",
       "mcp__supabase__execute_sql",
-      "mcp__supabase__generate_typescript_types"
+      "mcp__supabase__generate_typescript_types",
+      "Bash(Get-ChildItem -Recurse -Path \"src\")",
+      "Bash(Select-Object FullName, PSIsContainer)",
+      "Bash(ConvertTo-Json)",
+      "Bash(grep -v \"^\\\\s*//\")",
+      "mcp__supabase__get_logs",
+      "Bash(git *)"
     ]
   },
   "enableAllProjectMcpServers": true,

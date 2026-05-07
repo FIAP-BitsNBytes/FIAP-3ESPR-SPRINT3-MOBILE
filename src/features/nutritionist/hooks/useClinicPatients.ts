@@ -41,7 +41,7 @@ export const useClinicPatients = () => {
       .select(`
         id,
         name,
-        stats:gamification_stats(
+        stats:gamification_stats!gamification_stats_patient_id_fkey(
           level,
           streak_days,
           points
