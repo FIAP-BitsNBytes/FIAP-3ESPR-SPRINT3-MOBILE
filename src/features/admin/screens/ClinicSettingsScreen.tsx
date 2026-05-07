@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ScrollView, View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Building2, Phone, Save, ArrowLeft } from 'lucide-react-native';
+import { Building2, Phone, Save, ArrowLeft, History, ChevronRight } from 'lucide-react-native';
 import { colors, spacing, radius, fontSize, shadow } from '@/shared/theme';
 import { useClinicManagement } from '../hooks/useClinicManagement';
 import { useRouter } from 'expo-router';
@@ -105,6 +105,20 @@ export function ClinicSettingsScreen() {
               </>
             )}
           </TouchableOpacity>
+
+          <View style={styles.divider} />
+
+          <TouchableOpacity
+            style={styles.auditBtn}
+            onPress={() => router.push('/clinic-audit')}
+          >
+            <History size={20} color={colors.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.auditTitle}>Logs de Auditoria</Text>
+              <Text style={styles.auditSubtitle}>Histórico de alterações da clínica</Text>
+            </View>
+            <ChevronRight size={20} color={colors.muted} />
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -166,4 +180,29 @@ const styles = StyleSheet.create({
   saveBtnDisabled: { opacity: 0.7 },
   saveText: { color: colors.background, fontSize: fontSize.md, fontWeight: '700' },
   errorText: { color: colors.danger, fontSize: fontSize.sm, marginBottom: spacing.md },
+  divider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: spacing.md,
+  },
+  auditBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    gap: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadow.sm,
+  },
+  auditTitle: {
+    color: colors.text,
+    fontSize: fontSize.md,
+    fontWeight: '700',
+  },
+  auditSubtitle: {
+    color: colors.muted,
+    fontSize: fontSize.xs,
+  },
 });
