@@ -1,102 +1,126 @@
 import { Tabs, Redirect } from 'expo-router';
 import {
-  Home, UtensilsCrossed, Calendar, User,
-  Users, Trophy, LayoutDashboard, Stethoscope, TrendingUp, Building2
+  Building2,
+  Calendar,
+  Home,
+  Stethoscope,
+  Trophy,
+  TrendingUp,
+  User,
+  Users,
+  UtensilsCrossed,
 } from 'lucide-react-native';
-import { ActivityIndicator, View, Platform } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthContext } from '@/features/auth';
-import { colors } from '@/shared/theme';
+import { colors, radius, spacing } from '@/shared/theme';
+import {
+  getHiddenTabRoutes,
+  getTabMenuForRole,
+  TabIconKey,
+  TabMenuItem,
+  TabRoute,
+} from '@/shared/navigation/tabs';
 
 const ICON_SIZE = 22;
+const HIDDEN = { href: null } as const;
+
+const ICON_BY_KEY = {
+  home: Home,
+  nutrition: UtensilsCrossed,
+  progress: TrendingUp,
+  schedule: Calendar,
+  profile: User,
+  patients: Users,
+  ranking: Trophy,
+  nutritionists: Stethoscope,
+  clinic: Building2,
+} satisfies Record<TabIconKey, typeof Home>;
+
+function TabIcon({ iconKey, color, focused }: { iconKey: TabIconKey; color: string; focused: boolean }) {
+  const Icon = ICON_BY_KEY[iconKey];
+
+  return (
+    <View style={styles.iconShell}>
+      <Icon size={ICON_SIZE} color={color} strokeWidth={focused ? 2.6 : 2.1} />
+      <View style={[styles.activeDot, focused && styles.activeDotVisible]} />
+    </View>
+  );
+}
 
 function useTabScreenOptions() {
   const insets = useSafeAreaInsets();
-  const bottomPad = Math.max(insets.bottom, 8);
+  const bottomPad = Math.max(insets.bottom, 10);
+
   return {
     headerShown: false,
     tabBarActiveTintColor: colors.primary,
     tabBarInactiveTintColor: colors.muted,
+    tabBarHideOnKeyboard: true,
     tabBarStyle: {
-      backgroundColor: colors.surface,
-      borderTopColor: colors.border,
-      borderTopWidth: 1,
-      height: 56 + bottomPad,
+      height: 76 + bottomPad,
+      paddingTop: 10,
       paddingBottom: bottomPad,
-      paddingTop: 8,
-      elevation: 16,
+      paddingHorizontal: spacing.sm,
+      backgroundColor: colors.background,
+      borderTopWidth: 1,
+      borderTopColor: colors.borderSubtle,
+      elevation: 10,
       shadowColor: '#000',
       shadowOffset: { width: 0, height: -4 },
-      shadowOpacity: 0.25,
-      shadowRadius: 12,
+      shadowOpacity: 0.22,
+      shadowRadius: 10,
     },
+    tabBarItemStyle: {
+      minHeight: 56,
+      borderRadius: radius.md,
+      paddingVertical: 4,
+      marginHorizontal: 1,
+    },
+    tabBarActiveBackgroundColor: colors.surface,
+    tabBarInactiveBackgroundColor: colors.background,
     tabBarLabelStyle: {
       fontSize: 10,
-      fontWeight: '600' as const,
-      marginTop: Platform.OS === 'ios' ? 0 : 2,
+      lineHeight: 13,
+      fontWeight: '800' as const,
+      marginTop: Platform.OS === 'ios' ? 2 : 1,
+      paddingBottom: 0,
+      letterSpacing: 0,
+      includeFontPadding: false,
     },
   };
 }
 
-const HIDDEN = { href: null } as const;
-
-function PatientTabs({ patientId }: { patientId: string }) {
-  const screenOptions = useTabScreenOptions();
-  return (
-    <Tabs screenOptions={screenOptions}>
-      <Tabs.Screen name="home" options={{ title: 'Home', tabBarIcon: ({ color }) => <Home size={ICON_SIZE} color={color} /> }} />
-      <Tabs.Screen name="nutrition" options={{ title: 'Nutrição', tabBarIcon: ({ color }) => <UtensilsCrossed size={ICON_SIZE} color={color} /> }} />
-      <Tabs.Screen
-        name="progress"
-        initialParams={{ patientId }}
-        options={{ title: 'Progresso', tabBarIcon: ({ color }) => <TrendingUp size={ICON_SIZE} color={color} /> }}
-      />
-      <Tabs.Screen name="schedule" options={{ title: 'Agenda', tabBarIcon: ({ color }) => <Calendar size={ICON_SIZE} color={color} /> }} />
-      <Tabs.Screen name="profile" options={{ title: 'Perfil', tabBarIcon: ({ color }) => <User size={ICON_SIZE} color={color} /> }} />
-      <Tabs.Screen name="index" options={HIDDEN} />
-      <Tabs.Screen name="patients" options={HIDDEN} />
-      <Tabs.Screen name="ranking" options={HIDDEN} />
-      <Tabs.Screen name="nutritionists" options={HIDDEN} />
-      <Tabs.Screen name="clinic-settings" options={HIDDEN} />
-      <Tabs.Screen name="clinic-audit" options={HIDDEN} />
-    </Tabs>
-  );
+function buildScreenOptions(item: TabMenuItem) {
+  return {
+    title: item.title,
+    tabBarAccessibilityLabel: item.accessibilityLabel,
+    tabBarIcon: ({ color, focused }: { color: string; focused: boolean }) => (
+      <TabIcon iconKey={item.icon} color={color} focused={focused} />
+    ),
+  };
 }
 
-function NutritionistTabs() {
+function RoleTabs({ patientId }: { patientId?: string }) {
+  const { user } = useAuthContext();
+  const role = user?.role ?? 'PATIENT';
   const screenOptions = useTabScreenOptions();
-  return (
-    <Tabs screenOptions={screenOptions}>
-      <Tabs.Screen name="home" options={{ title: 'Home', tabBarIcon: ({ color }) => <Home size={ICON_SIZE} color={color} /> }} />
-      <Tabs.Screen name="patients" options={{ title: 'Pacientes', tabBarIcon: ({ color }) => <Users size={ICON_SIZE} color={color} /> }} />
-      <Tabs.Screen name="ranking" options={{ title: 'Ranking', tabBarIcon: ({ color }) => <Trophy size={ICON_SIZE} color={color} /> }} />
-      <Tabs.Screen name="schedule" options={{ title: 'Agenda', tabBarIcon: ({ color }) => <Calendar size={ICON_SIZE} color={color} /> }} />
-      <Tabs.Screen name="profile" options={{ title: 'Perfil', tabBarIcon: ({ color }) => <User size={ICON_SIZE} color={color} /> }} />
-      <Tabs.Screen name="index" options={HIDDEN} />
-      <Tabs.Screen name="nutrition" options={HIDDEN} />
-      <Tabs.Screen name="progress" options={HIDDEN} />
-      <Tabs.Screen name="nutritionists" options={HIDDEN} />
-      <Tabs.Screen name="clinic-settings" options={HIDDEN} />
-      <Tabs.Screen name="clinic-audit" options={HIDDEN} />
-    </Tabs>
-  );
-}
+  const visibleTabs = getTabMenuForRole(role);
+  const hiddenTabs = getHiddenTabRoutes(role);
 
-function AdminTabs() {
-  const screenOptions = useTabScreenOptions();
   return (
     <Tabs screenOptions={screenOptions}>
-      <Tabs.Screen name="home" options={{ title: 'Dashboard', tabBarIcon: ({ color }) => <LayoutDashboard size={ICON_SIZE} color={color} /> }} />
-      <Tabs.Screen name="nutritionists" options={{ title: 'Nutricionistas', tabBarIcon: ({ color }) => <Stethoscope size={ICON_SIZE} color={color} /> }} />
-      <Tabs.Screen name="clinic-settings" options={{ title: 'Clínica', tabBarIcon: ({ color }) => <Building2 size={ICON_SIZE} color={color} /> }} />
-      <Tabs.Screen name="schedule" options={{ title: 'Agenda', tabBarIcon: ({ color }) => <Calendar size={ICON_SIZE} color={color} /> }} />
-      <Tabs.Screen name="profile" options={{ title: 'Perfil', tabBarIcon: ({ color }) => <User size={ICON_SIZE} color={color} /> }} />
-      <Tabs.Screen name="index" options={HIDDEN} />
-      <Tabs.Screen name="nutrition" options={HIDDEN} />
-      <Tabs.Screen name="progress" options={HIDDEN} />
-      <Tabs.Screen name="patients" options={HIDDEN} />
-      <Tabs.Screen name="ranking" options={HIDDEN} />
-      <Tabs.Screen name="clinic-audit" options={HIDDEN} />
+      {visibleTabs.map(item => (
+        <Tabs.Screen
+          key={item.route}
+          name={item.route}
+          initialParams={item.route === 'progress' && patientId ? { patientId } : undefined}
+          options={buildScreenOptions(item)}
+        />
+      ))}
+      {hiddenTabs.map(route => (
+        <Tabs.Screen key={route} name={route satisfies TabRoute} options={HIDDEN} />
+      ))}
     </Tabs>
   );
 }
@@ -106,14 +130,37 @@ export default function TabLayout() {
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
+      <View style={styles.loadingScreen}>
         <ActivityIndicator color={colors.primary} size="large" />
       </View>
     );
   }
 
   if (!user) return <Redirect href="/(auth)/login" />;
-  if (user.role === 'NUTRITIONIST') return <NutritionistTabs />;
-  if (user.role === 'ADMIN') return <AdminTabs />;
-  return <PatientTabs patientId={user.id} />;
+  return <RoleTabs patientId={user.role === 'PATIENT' ? user.id : undefined} />;
 }
+
+const styles = StyleSheet.create({
+  loadingScreen: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.background,
+  },
+  iconShell: {
+    width: 36,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+  },
+  activeDot: {
+    width: 4,
+    height: 4,
+    borderRadius: radius.full,
+    backgroundColor: 'transparent',
+  },
+  activeDotVisible: {
+    backgroundColor: colors.primary,
+  },
+});

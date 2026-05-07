@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/shared/infrastructure/supabase/client';
 import { User, AuthState } from '../domain/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { updateInterceptorUserId } from '@/shared/infrastructure/supabase/interceptor';
 
 const STORAGE_KEY = 'nutriapp_user_id';
 
@@ -45,32 +46,55 @@ export const useAuth = () => {
     isLoading: true,
   });
 
+  // Trava para evitar operações de autenticação concorrentes
+  const [isProcessing, setIsProcessing] = useState(false);
+
   const updateSession = async (session: any) => {
-    if (session?.user) {
-      const user = await fetchUser(session.user.id, session.user.email ?? '');
-      if (user) {
-        await AsyncStorage.setItem(STORAGE_KEY, user.id);
-        setState({ user, isAuthenticated: true, isLoading: false });
+    try {
+      if (session?.user) {
+        // 1. Primeiro atualiza o interceptor para garantir que o ID esteja nos headers
+        updateInterceptorUserId(session.user.id);
+        
+        // 2. Busca o perfil
+        const user = await fetchUser(session.user.id, session.user.email ?? '');
+        
+        if (user) {
+          await AsyncStorage.setItem(STORAGE_KEY, user.id);
+          setState({ user, isAuthenticated: true, isLoading: false });
+        } else {
+          // Caso crítico: Autenticado no Auth mas sem perfil no DB
+          console.error('[Auth] Perfil não encontrado para usuário autenticado');
+          throw new Error('Perfil incompleto. Entre em contato com o suporte.');
+        }
       } else {
-        await AsyncStorage.removeItem(STORAGE_KEY);
-        setState({ user: null, isAuthenticated: false, isLoading: false });
+        throw new Error('Sem sessão');
       }
-    } else {
+    } catch (err) {
+      // Limpeza total em caso de qualquer falha
+      updateInterceptorUserId(null);
       await AsyncStorage.removeItem(STORAGE_KEY);
       setState({ user: null, isAuthenticated: false, isLoading: false });
     }
   };
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      updateSession(session);
-    });
+    let mounted = true;
+
+    const init = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (mounted) updateSession(session);
+    };
+
+    init();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      updateSession(session);
+      if (mounted) updateSession(session);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const refreshUser = async () => {
@@ -79,15 +103,37 @@ export const useAuth = () => {
   };
 
   const login = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw error;
+    if (isProcessing) return; // Bloqueia cliques múltiplos
+    
+    setIsProcessing(true);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const logout = async () => {
-    await supabase.auth.signOut();
-    await AsyncStorage.removeItem(STORAGE_KEY);
-    setState({ user: null, isAuthenticated: false, isLoading: false });
+    if (isProcessing) return;
+    
+    setIsProcessing(true);
+    try {
+      // Tentamos deslogar no servidor, mas o deslogue LOCAL é obrigatório
+      await supabase.auth.signOut().catch(e => console.warn('[Auth] SignOut remoto falhou', e));
+    } finally {
+      updateInterceptorUserId(null);
+      await AsyncStorage.removeItem(STORAGE_KEY);
+      setState({ user: null, isAuthenticated: false, isLoading: false });
+      setIsProcessing(false);
+    }
   };
 
-  return { ...state, login, logout, refreshUser };
+  return { 
+    ...state, 
+    isLoading: state.isLoading || isProcessing, 
+    login, 
+    logout, 
+    refreshUser 
+  };
 };
