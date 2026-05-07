@@ -46,6 +46,9 @@ interface UseMealPlanReturn {
   items: NutritionistPlanItem[];
   planId: string | null;
   planTitle: string | null;
+  planStartDate: string | null;
+  planEndDate: string | null;
+  planNotes: string | null;
   isLoading: boolean;
   error: string | null;
   isSubmitting: boolean;
@@ -59,6 +62,9 @@ export function useMealPlan(patientId: string | null, date?: string): UseMealPla
   const [items, setItems] = useState<NutritionistPlanItem[]>([]);
   const [planId, setPlanId] = useState<string | null>(null);
   const [planTitle, setPlanTitle] = useState<string | null>(null);
+  const [planStartDate, setPlanStartDate] = useState<string | null>(null);
+  const [planEndDate, setPlanEndDate] = useState<string | null>(null);
+  const [planNotes, setPlanNotes] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -97,6 +103,9 @@ export function useMealPlan(patientId: string | null, date?: string): UseMealPla
         setItems([]);
         setPlanId(null);
         setPlanTitle(null);
+        setPlanStartDate(null);
+        setPlanEndDate(null);
+        setPlanNotes(null);
         setIsLoading(false);
         return;
       }
@@ -124,6 +133,19 @@ export function useMealPlan(patientId: string | null, date?: string): UseMealPla
       setItems(mapped);
       setPlanId(mapped[0].planId);
       setPlanTitle(mapped[0].planTitle);
+
+      const { data: planDetails } = await supabase
+        .from('meal_plans')
+        .select('start_date, end_date, notes')
+        .eq('id', mapped[0].planId)
+        .single();
+
+      if (!cancelled) {
+        setPlanStartDate(planDetails?.start_date ?? null);
+        setPlanEndDate(planDetails?.end_date ?? null);
+        setPlanNotes(planDetails?.notes ?? null);
+      }
+
       setError(null);
       setIsLoading(false);
     };
@@ -192,5 +214,5 @@ export function useMealPlan(patientId: string | null, date?: string): UseMealPla
     }
   };
 
-  return { items, planId, planTitle, isLoading, error, isSubmitting, refresh, createPlan, upsertItem, deleteItem };
+  return { items, planId, planTitle, planStartDate, planEndDate, planNotes, isLoading, error, isSubmitting, refresh, createPlan, upsertItem, deleteItem };
 }
