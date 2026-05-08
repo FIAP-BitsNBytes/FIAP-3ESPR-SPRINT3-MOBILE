@@ -40,3 +40,12 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# AI assistants
+.claude/
+.gemini/
+.vscode/
+CLAUDE.md
+CODEX.md
+GEMINI.md
+.mcp.json
