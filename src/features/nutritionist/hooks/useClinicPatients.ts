@@ -9,6 +9,7 @@ export interface ClinicPatient {
   level: number;
   streakDays: number;
   points: number;
+  experience: number;
 }
 
 interface UseClinicPatientsState {
@@ -35,35 +36,39 @@ export const useClinicPatients = () => {
       return;
     }
 
-    // Query patients and their stats
-    const { data, error } = await supabase
+    const { data: profilesData, error: profilesError } = await supabase
       .from('profiles')
-      .select(`
-        id,
-        name,
-        stats:gamification_stats!gamification_stats_patient_id_fkey(
-          level,
-          streak_days,
-          points
-        )
-      `)
+      .select('id, name')
       .eq('role', 'PATIENT')
       .eq('clinic_id', user.clinicId)
       .order('name', { ascending: true });
 
-    if (error || !data) {
-      setState(prev => ({ ...prev, isLoading: false, error: error?.message ?? 'Erro ao carregar pacientes' }));
+    if (profilesError || !profilesData) {
+      setState(prev => ({ ...prev, isLoading: false, error: profilesError?.message ?? 'Erro ao carregar pacientes' }));
       return;
     }
 
-    const patients: ClinicPatient[] = data.map(row => {
-      const stats = (row.stats as any)?.[0] || { level: 1, streak_days: 0, points: 0 };
+    const patientIds = profilesData.map(p => p.id);
+    const statsMap = new Map<string, { level: number; streak_days: number; points: number; experience: number }>();
+
+    if (patientIds.length > 0) {
+      const { data: statsData } = await supabase
+        .from('gamification_stats')
+        .select('patient_id, level, streak_days, points, experience')
+        .in('patient_id', patientIds);
+
+      statsData?.forEach(s => statsMap.set(s.patient_id, s));
+    }
+
+    const patients: ClinicPatient[] = profilesData.map(row => {
+      const stats = statsMap.get(row.id) ?? { level: 1, streak_days: 0, points: 0, experience: 0 };
       return {
         id: row.id,
         name: row.name,
         level: stats.level,
         streakDays: stats.streak_days,
         points: stats.points,
+        experience: stats.experience,
       };
     });
 
