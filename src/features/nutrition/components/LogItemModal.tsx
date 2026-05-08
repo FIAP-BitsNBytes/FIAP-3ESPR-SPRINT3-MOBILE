@@ -31,7 +31,8 @@ export function LogItemModal({ item, isSubmitting, onClose, onSubmit }: LogItemM
       planItemId: item.itemId,
       actualQty:  parsed,
       actualUnit: item.prescribedUnit,
-      actualCal:  cal ? parseInt(cal, 10) : null,
+      // Fall back to prescribed calories so the chart always has data
+      actualCal:  cal ? parseInt(cal, 10) : (item.prescribedCal ?? null),
       notes:      notes.trim() || null,
     });
   };

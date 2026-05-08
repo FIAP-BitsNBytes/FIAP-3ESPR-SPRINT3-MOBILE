@@ -124,6 +124,14 @@ export function usePlanDetail(patientId?: string | null, date?: string): PlanDet
         }
 
         setIsLoading(false);
+        // Real-time: re-fetch when any log for this patient changes
+        if (!channel && patientId) {
+          channel = supabase
+            .channel(uniqueChannelName('plan-detail', patientId))
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'meal_logs',       filter: `patient_id=eq.${patientId}` }, () => { void fetchData(); })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'meal_plan_items'                                       }, () => { void fetchData(); })
+            .subscribe();
+        }
       } else {
         const targetId = user?.id;
         if (!targetId) { setIsLoading(false); return; }
@@ -145,6 +153,15 @@ export function usePlanDetail(patientId?: string | null, date?: string): PlanDet
           .maybeSingle();
 
         if (cancelled) return;
+
+        // Always subscribe so the UI updates even when the plan is empty
+        if (!channel) {
+          channel = supabase
+            .channel(uniqueChannelName('plan-detail', targetId))
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'meal_logs',       filter: `patient_id=eq.${targetId}` }, () => { void fetchData(); })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'meal_plan_items'                                       }, () => { void fetchData(); })
+            .subscribe();
+        }
 
         const meta: PlanMeta | null = activePlan
           ? {
@@ -187,15 +204,6 @@ export function usePlanDetail(patientId?: string | null, date?: string): PlanDet
 
         setItems(mapped);
         setIsLoading(false);
-
-        channel = supabase
-          .channel(uniqueChannelName('plan-detail', targetId))
-          .on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table: 'meal_logs', filter: `patient_id=eq.${targetId}` },
-            () => { void fetchData(); }
-          )
-          .subscribe();
       }
     };
 
