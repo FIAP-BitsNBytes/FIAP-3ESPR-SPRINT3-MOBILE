@@ -2,13 +2,14 @@ import { useMemo } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, ClipboardList, Flame, Target, TrendingUp, Trophy, Utensils } from 'lucide-react-native';
+import { ArrowLeft, ChevronRight, ClipboardList, Flame, Plus, Target, TrendingUp, Trophy, Utensils } from 'lucide-react-native';
 import { LevelCard } from '@/shared/components/gamification/LevelCard';
 import { StatCard } from '@/shared/components/ui/StatCard';
 import { appStyles, colors, fontSize, radius, shadow, spacing } from '@/shared/theme';
 import { useGamification } from '@/shared/hooks/useGamification';
 import { useTodayLogs } from '@/features/patient/hooks/useTodayLogs';
 import { DailyProgressItem, useProgressMetrics } from '@/features/patient/hooks/useProgressMetrics';
+import { usePlanDetail } from '@/features/nutrition/hooks/usePlanDetail';
 
 const CALORIE_GOAL = 2000;
 const WATER_GOAL_ML = 2500;
@@ -80,6 +81,7 @@ export function NutritionistPatientDetailScreen() {
   const { stats, isLoading: isGamificationLoading } = useGamification(patientId ?? null);
   const { totalCalories, waterMl, meals } = useTodayLogs(patientId ?? null);
   const { days, isLoading: isProgressLoading, error } = useProgressMetrics(patientId ?? null);
+  const { plan, items: planItems, isLoading: isPlanLoading } = usePlanDetail(patientId ?? null);
 
   const mealCount = meals.filter(m => m.category === 'MEAL').length;
   const exerciseCount = meals.filter(m => m.category === 'EXERCISE').length;
@@ -124,6 +126,33 @@ export function NutritionistPatientDetailScreen() {
           maxXP={500}
           streakDays={isGamificationLoading ? 0 : stats.streakDays}
         />
+
+        {/* Meal plan access card */}
+        <TouchableOpacity
+          style={styles.planCard}
+          onPress={() => router.push(`/meal-plan?patientId=${patientId}&name=${encodeURIComponent(patientName)}`)}
+          activeOpacity={0.75}
+        >
+          <View style={styles.planCardIcon}>
+            <ClipboardList size={22} color={colors.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.planCardTitle}>Plano Alimentar</Text>
+            {isPlanLoading ? (
+              <Text style={styles.planCardSub}>Carregando...</Text>
+            ) : plan ? (
+              <Text style={styles.planCardSub} numberOfLines={1}>
+                {plan.title} · {planItems.length} item{planItems.length !== 1 ? 's' : ''}
+              </Text>
+            ) : (
+              <View style={styles.planCardNoplan}>
+                <Plus size={11} color={colors.primary} />
+                <Text style={styles.planCardNoPlanText}>Criar plano</Text>
+              </View>
+            )}
+          </View>
+          <ChevronRight size={18} color={colors.muted} />
+        </TouchableOpacity>
 
         <View style={styles.statsRow}>
           <StatCard label="Média kcal" value={weeklyAverage} Icon={TrendingUp} color={colors.primary} />
@@ -191,6 +220,29 @@ export function NutritionistPatientDetailScreen() {
 }
 
 const styles = StyleSheet.create({
+  planCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.primary + '44',
+    ...shadow.sm,
+  },
+  planCardIcon: {
+    width: 40, height: 40,
+    borderRadius: radius.md,
+    backgroundColor: colors.primaryGlow,
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1, borderColor: colors.primary + '33',
+  },
+  planCardTitle:      { color: colors.text, fontSize: fontSize.md, fontWeight: '800' },
+  planCardSub:        { color: colors.muted, fontSize: fontSize.xs, marginTop: 2 },
+  planCardNoplan:     { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 },
+  planCardNoPlanText: { color: colors.primary, fontSize: fontSize.xs, fontWeight: '700' },
+
   header: {
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.sm,

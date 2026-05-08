@@ -23,7 +23,8 @@
       "Bash(ConvertTo-Json)",
       "Bash(grep -v \"^\\\\s*//\")",
       "mcp__supabase__get_logs",
-      "Bash(git *)"
+      "Bash(git *)",
+      "Bash(npx supabase *)"
     ]
   },
   "enableAllProjectMcpServers": true,

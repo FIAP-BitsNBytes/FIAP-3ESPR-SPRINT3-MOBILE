@@ -1,150 +1,77 @@
-import React, { useState, useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
-  ScrollView, View, Text, StyleSheet, TouchableOpacity,
-  Modal, TextInput, ActivityIndicator, Alert,
+  Modal, ScrollView, TextInput, View, Text, StyleSheet, TouchableOpacity,
+  ActivityIndicator, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { CheckCircle2, Droplets, Plus, Utensils, Zap } from 'lucide-react-native';
-import { appStyles, colors, fontSize, radius, shadow, spacing } from '@/shared/theme';
-import { useDailyPlan, type PlanItem, type MealTimeType, type MeasurementUnit } from '../hooks/useDailyPlan';
-import { useTodayLogs } from '../hooks/useTodayLogs';
+import { Droplets, Plus, Utensils, Zap } from 'lucide-react-native';
+import { appStyles, colors, fontSize, radius, spacing } from '@/shared/theme';
 import { useLogWater } from '../hooks/useLogWater';
+import { useTodayLogs } from '../hooks/useTodayLogs';
 import { useLogMeal, type LogFreeMealParams } from '../hooks/useLogMeal';
+import type { MeasurementUnit } from '../hooks/useDailyPlan';
+
+import { usePlanDetail } from '@/features/nutrition/hooks/usePlanDetail';
+import { PlanDetailContext } from '@/features/nutrition/context/PlanDetailContext';
+import { PlanHeader } from '@/features/nutrition/components/PlanHeader';
+import { PlanEmptyState } from '@/features/nutrition/components/PlanEmptyState';
+import { MealSection } from '@/features/nutrition/components/MealSection';
+import { LogItemModal } from '@/features/nutrition/components/LogItemModal';
+import { MEAL_TIME_ORDER } from '@/features/nutrition/types';
+import type { MealTimeType, PlanItem, LogItemParams } from '@/features/nutrition/types';
 
 const WATER_GOAL_ML = 2500;
 
-const MEAL_TIME_LABELS: Record<MealTimeType, string> = {
-  BREAKFAST:       'Cafe da manha',
-  MORNING_SNACK:   'Lanche da manha',
-  LUNCH:           'Almoco',
-  AFTERNOON_SNACK: 'Lanche da tarde',
-  DINNER:          'Jantar',
-  EVENING_SNACK:   'Ceia',
-  ANYTIME:         'A qualquer hora',
-};
-
 const UNIT_LABELS: Record<MeasurementUnit, string> = {
-  GRAMS:       'g',
-  MILLILITERS: 'ml',
-  UNITS:       'un',
-  PORTIONS:    'porc',
-  CALORIES:    'kcal',
+  GRAMS: 'g', MILLILITERS: 'ml', UNITS: 'un', PORTIONS: 'porç.', CALORIES: 'kcal',
 };
-
-const UNIT_OPTIONS: MeasurementUnit[] = ['GRAMS', 'MILLILITERS', 'UNITS', 'PORTIONS', 'CALORIES'];
 
 // ─── Water bar ───────────────────────────────────────────────
 
 function WaterBar({ waterMl }: { waterMl: number }) {
   const pct = Math.min((waterMl / WATER_GOAL_ML) * 100, 100);
-  const color = waterMl >= WATER_GOAL_ML ? colors.success : '#38BDF8';
+  const c = waterMl >= WATER_GOAL_ML ? colors.success : '#38BDF8';
   return (
     <View style={styles.waterTrack}>
-      <View style={[styles.waterFill, { width: `${pct}%` as `${number}%`, backgroundColor: color }]} />
+      <View style={[styles.waterFill, { width: `${pct}%` as `${number}%`, backgroundColor: c }]} />
     </View>
   );
 }
 
-// ─── Plan item card ──────────────────────────────────────────
+// ─── Tab bar ─────────────────────────────────────────────────
 
-function PlanItemCard({ item, onLog }: { item: PlanItem; onLog: (item: PlanItem) => void }) {
-  const isLogged = item.logId !== null;
-  const unitLabel = UNIT_LABELS[item.prescribedUnit];
+type Tab = 'plan' | 'extras';
+
+function TabBar({ active, onChange }: { active: Tab; onChange: (t: Tab) => void }) {
   return (
-    <View style={[styles.planCard, isLogged && styles.planCardLogged]}>
-      <View style={styles.planCardLeft}>
-        <Text style={styles.planFoodName} numberOfLines={1}>{item.foodName}</Text>
-        <Text style={styles.planMeta}>
-          {item.prescribedQty}{unitLabel}
-          {item.prescribedCal ? ` · ${item.prescribedCal} kcal` : ''}
-          {item.purpose ? ` · ${item.purpose}` : ''}
-        </Text>
-        {isLogged && (
-          <Text style={styles.planActual}>
-            {`Consumido: ${item.actualQty}${item.actualUnit ? UNIT_LABELS[item.actualUnit] : ''}`}
-            {item.xpEarned > 0 ? ` · +${item.xpEarned} XP` : ''}
+    <View style={styles.tabBar}>
+      {(['plan', 'extras'] as Tab[]).map(tab => (
+        <TouchableOpacity
+          key={tab}
+          style={[styles.tabItem, active === tab && styles.tabItemActive]}
+          onPress={() => onChange(tab)}
+          activeOpacity={0.8}
+        >
+          {tab === 'plan'
+            ? <Utensils size={14} color={active === tab ? colors.primary : colors.muted} />
+            : <Droplets size={14} color={active === tab ? colors.primary : colors.muted} />}
+          <Text style={[styles.tabText, active === tab && styles.tabTextActive]}>
+            {tab === 'plan' ? 'Meu Plano' : 'Água & Extra'}
           </Text>
-        )}
-      </View>
-      {isLogged ? (
-        <CheckCircle2 size={24} color={colors.success} />
-      ) : (
-        <TouchableOpacity style={styles.logBtn} onPress={() => onLog(item)} activeOpacity={0.7}>
-          <Text style={styles.logBtnText}>Registrar</Text>
         </TouchableOpacity>
-      )}
+      ))}
     </View>
   );
 }
 
-// ─── Modal: log plan item ────────────────────────────────────
+// ─── Free meal modal ─────────────────────────────────────────
 
-interface LogPlanModalProps {
-  item: PlanItem | null;
-  onClose: () => void;
-  onSubmit: (actualQty: number, actualCal: number | null, notes: string | null) => Promise<void>;
-  isLogging: boolean;
-}
-
-function LogPlanModal({ item, onClose, onSubmit, isLogging }: LogPlanModalProps) {
-  const [qty, setQty] = useState(item ? String(item.prescribedQty) : '');
-  const [cal, setCal] = useState(item?.prescribedCal ? String(item.prescribedCal) : '');
-  const [notes, setNotes] = useState('');
-
-  if (!item) return null;
-
-  const handleSubmit = async () => {
-    const parsedQty = parseFloat(qty);
-    if (!qty || isNaN(parsedQty) || parsedQty <= 0) {
-      Alert.alert('Quantidade invalida', 'Informe uma quantidade maior que zero.');
-      return;
-    }
-    await onSubmit(parsedQty, cal ? parseInt(cal, 10) : null, notes.trim() || null);
-  };
-
-  return (
-    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={styles.sheet}>
-          <Text style={styles.sheetTitle}>{item.foodName}</Text>
-          <Text style={styles.sheetSub}>
-            {`Prescrito: ${item.prescribedQty}${UNIT_LABELS[item.prescribedUnit]}`}
-            {item.prescribedCal ? ` · ${item.prescribedCal} kcal` : ''}
-          </Text>
-
-          <Text style={styles.fieldLabel}>Quantidade consumida ({UNIT_LABELS[item.prescribedUnit]})</Text>
-          <TextInput style={styles.input} value={qty} onChangeText={setQty} keyboardType="numeric" placeholderTextColor={colors.muted} />
-
-          <Text style={styles.fieldLabel}>Calorias reais (opcional)</Text>
-          <TextInput style={styles.input} value={cal} onChangeText={setCal} keyboardType="numeric" placeholder="ex: 320" placeholderTextColor={colors.muted} />
-
-          <Text style={styles.fieldLabel}>Observacao (opcional)</Text>
-          <TextInput style={[styles.input, styles.inputMulti]} value={notes} onChangeText={setNotes} multiline placeholder="ex: comi menos pois nao estava com fome" placeholderTextColor={colors.muted} />
-
-          <View style={styles.sheetBtns}>
-            <TouchableOpacity style={styles.cancelBtn} onPress={onClose} disabled={isLogging}>
-              <Text style={styles.cancelBtnText}>Cancelar</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.confirmBtn} onPress={handleSubmit} disabled={isLogging} activeOpacity={0.8}>
-              {isLogging ? <ActivityIndicator color="white" size="small" /> : <Text style={styles.confirmBtnText}>Confirmar</Text>}
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-// ─── Modal: free meal ────────────────────────────────────────
-
-interface FreeMealModalProps {
-  visible: boolean;
-  onClose: () => void;
-  onSubmit: (params: LogFreeMealParams) => Promise<void>;
-  isLogging: boolean;
-}
-
-function FreeMealModal({ visible, onClose, onSubmit, isLogging }: FreeMealModalProps) {
+function FreeMealModal({
+  visible, onClose, onSubmit, isLogging,
+}: {
+  visible: boolean; onClose: () => void;
+  onSubmit: (p: LogFreeMealParams) => Promise<void>; isLogging: boolean;
+}) {
   const [foodName, setFoodName] = useState('');
   const [qty, setQty] = useState('');
   const [unit, setUnit] = useState<MeasurementUnit>('GRAMS');
@@ -153,20 +80,22 @@ function FreeMealModal({ visible, onClose, onSubmit, isLogging }: FreeMealModalP
   const reset = () => { setFoodName(''); setQty(''); setUnit('GRAMS'); setCal(''); };
 
   const handleSubmit = async () => {
-    if (!foodName.trim()) { Alert.alert('Obrigatorio', 'Informe o nome do alimento.'); return; }
-    const parsedQty = parseFloat(qty);
-    if (!qty || isNaN(parsedQty) || parsedQty <= 0) { Alert.alert('Quantidade invalida', 'Informe uma quantidade maior que zero.'); return; }
-    await onSubmit({ foodName: foodName.trim(), qty: parsedQty, unit, calories: cal ? parseInt(cal, 10) : null });
+    if (!foodName.trim()) { Alert.alert('Obrigatório', 'Informe o nome do alimento.'); return; }
+    const parsed = parseFloat(qty);
+    if (!qty || isNaN(parsed) || parsed <= 0) {
+      Alert.alert('Quantidade inválida', 'Informe uma quantidade maior que zero.'); return;
+    }
+    await onSubmit({ foodName: foodName.trim(), qty: parsed, unit, calories: cal ? parseInt(cal, 10) : null });
     reset();
   };
 
-  const handleClose = () => { reset(); onClose(); };
+  const units: MeasurementUnit[] = ['GRAMS', 'MILLILITERS', 'UNITS', 'PORTIONS', 'CALORIES'];
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={() => { reset(); onClose(); }}>
       <View style={styles.overlay}>
         <View style={styles.sheet}>
-          <Text style={styles.sheetTitle}>Refeicao livre</Text>
+          <Text style={styles.sheetTitle}>Refeição livre</Text>
 
           <Text style={styles.fieldLabel}>Alimento</Text>
           <TextInput style={styles.input} value={foodName} onChangeText={setFoodName} placeholder="ex: Banana" placeholderTextColor={colors.muted} />
@@ -177,7 +106,7 @@ function FreeMealModal({ visible, onClose, onSubmit, isLogging }: FreeMealModalP
           <Text style={styles.fieldLabel}>Unidade</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.sm }}>
             <View style={{ flexDirection: 'row', gap: spacing.xs }}>
-              {UNIT_OPTIONS.map(u => (
+              {units.map(u => (
                 <TouchableOpacity key={u} style={[styles.unitChip, unit === u && styles.unitChipActive]} onPress={() => setUnit(u)}>
                   <Text style={[styles.unitChipText, unit === u && styles.unitChipTextActive]}>{UNIT_LABELS[u]}</Text>
                 </TouchableOpacity>
@@ -189,7 +118,7 @@ function FreeMealModal({ visible, onClose, onSubmit, isLogging }: FreeMealModalP
           <TextInput style={styles.input} value={cal} onChangeText={setCal} keyboardType="numeric" placeholder="ex: 89" placeholderTextColor={colors.muted} />
 
           <View style={styles.sheetBtns}>
-            <TouchableOpacity style={styles.cancelBtn} onPress={handleClose} disabled={isLogging}>
+            <TouchableOpacity style={styles.cancelBtn} onPress={() => { reset(); onClose(); }} disabled={isLogging}>
               <Text style={styles.cancelBtnText}>Cancelar</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.confirmBtn} onPress={handleSubmit} disabled={isLogging} activeOpacity={0.8}>
@@ -202,93 +131,41 @@ function FreeMealModal({ visible, onClose, onSubmit, isLogging }: FreeMealModalP
   );
 }
 
-// ─── Constants ───────────────────────────────────────────────
-
-const MEAL_TIME_ORDER: MealTimeType[] = [
-  'BREAKFAST', 'MORNING_SNACK', 'LUNCH', 'AFTERNOON_SNACK', 'DINNER', 'EVENING_SNACK', 'ANYTIME',
-];
-
-// ─── Tab bar ─────────────────────────────────────────────────
-
-type Tab = 'plan' | 'extras';
-
-function TabBar({ active, onChange }: { active: Tab; onChange: (t: Tab) => void }) {
-  return (
-    <View style={styles.tabBar}>
-      <TouchableOpacity
-        style={[styles.tabItem, active === 'plan' && styles.tabItemActive]}
-        onPress={() => onChange('plan')}
-        activeOpacity={0.8}
-      >
-        <Utensils size={14} color={active === 'plan' ? colors.primary : colors.muted} />
-        <Text style={[styles.tabText, active === 'plan' && styles.tabTextActive]}>Meu Plano</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[styles.tabItem, active === 'extras' && styles.tabItemActive]}
-        onPress={() => onChange('extras')}
-        activeOpacity={0.8}
-      >
-        <Droplets size={14} color={active === 'extras' ? colors.primary : colors.muted} />
-        <Text style={[styles.tabText, active === 'extras' && styles.tabTextActive]}>Água & Extra</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
-
 // ─── Main screen ─────────────────────────────────────────────
 
 export function PatientNutritionScreen() {
-  const { planItems, isLoading: isPlanLoading, error: planError, refresh: refreshPlan } = useDailyPlan();
-  const { waterMl, meals, isLoading: isLogsLoading } = useTodayLogs();
+  const today = new Date().toISOString().slice(0, 10);
+  const planDetail = usePlanDetail(undefined, today);
+  const { waterMl, meals } = useTodayLogs();
   const { logWater, isLogging: isWaterLogging } = useLogWater();
-  const { logMealFromPlan, logFreeMeal, isLogging: isMealLogging } = useLogMeal();
+  const { logFreeMeal, isLogging: isMealLogging } = useLogMeal();
 
-  const [selectedPlanItem, setSelectedPlanItem] = useState<PlanItem | null>(null);
+  const [selectedItem, setSelectedItem] = useState<PlanItem | null>(null);
   const [showFreeMeal, setShowFreeMeal] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('plan');
 
+  const { items, plan, isLoading, error } = planDetail;
   const freeMeals = useMemo(() => meals.filter(m => m.category === 'MEAL'), [meals]);
-
-  const totalXpToday = useMemo(
-    () => planItems.reduce((sum, i) => sum + i.xpEarned, 0),
-    [planItems]
-  );
-
-  const loggedCount = useMemo(() => planItems.filter(i => i.logId).length, [planItems]);
+  const loggedCount = useMemo(() => items.filter(i => i.logId && i.logId !== 'pending').length, [items]);
+  const totalXpToday = useMemo(() => items.reduce((s, i) => s + i.xpEarned, 0), [items]);
 
   const grouped = useMemo(() => {
     const map = new Map<MealTimeType, PlanItem[]>();
-    for (const item of planItems) {
-      const existing = map.get(item.mealTime) ?? [];
-      map.set(item.mealTime, [...existing, item]);
+    for (const item of items) {
+      map.set(item.mealTime, [...(map.get(item.mealTime) ?? []), item]);
     }
     return map;
-  }, [planItems]);
-
-  const orderedGroups = useMemo(
-    () => MEAL_TIME_ORDER.filter(t => grouped.has(t)).map(t => ({ mealTime: t, items: grouped.get(t)! })),
-    [grouped]
-  );
-
-  const isLoading = isPlanLoading || isLogsLoading;
+  }, [items]);
 
   const handleWater = async (ml: number) => {
     const result = await logWater(ml);
     if (!result.success) Alert.alert('Erro', result.error);
   };
 
-  const handleLogPlanItem = async (actualQty: number, actualCal: number | null, notes: string | null) => {
-    if (!selectedPlanItem) return;
-    const result = await logMealFromPlan({
-      planItemId: selectedPlanItem.itemId,
-      actualQty,
-      actualUnit: selectedPlanItem.prescribedUnit,
-      actualCal,
-      notes,
-    });
-    setSelectedPlanItem(null);
+  const handleLogItem = async (params: LogItemParams) => {
+    const result = await planDetail.logItem(params);
+    setSelectedItem(null);
     if (!result.success) Alert.alert('Erro', result.error);
-    else refreshPlan();
   };
 
   const handleFreeMeal = async (params: LogFreeMealParams) => {
@@ -298,237 +175,216 @@ export function PatientNutritionScreen() {
   };
 
   return (
-    <SafeAreaView style={appStyles.screen} edges={['top']}>
-      {/* Fixed header */}
-      <View style={styles.header}>
-        <View style={styles.pageHeader}>
-          <Text style={appStyles.eyebrow}>Hoje</Text>
-          <Text style={appStyles.title}>Nutricao</Text>
+    <PlanDetailContext.Provider value={planDetail}>
+      <SafeAreaView style={appStyles.screen} edges={['top']}>
+
+        {/* Fixed header */}
+        <View style={styles.header}>
+          <View style={styles.pageHeader}>
+            <Text style={appStyles.eyebrow}>Hoje</Text>
+            <Text style={appStyles.title}>Nutrição</Text>
+          </View>
+
+          <View style={styles.summaryRow}>
+            <View style={[styles.chip, { backgroundColor: '#38BDF8' + '22' }]}>
+              <Droplets size={14} color="#38BDF8" />
+              <Text style={[styles.chipText, { color: '#38BDF8' }]}>{(waterMl / 1000).toFixed(1)}L</Text>
+            </View>
+            <View style={[styles.chip, { backgroundColor: colors.primaryGlow }]}>
+              <Utensils size={14} color={colors.primary} />
+              <Text style={[styles.chipText, { color: colors.primary }]}>
+                {loggedCount}/{items.length} ref.
+              </Text>
+            </View>
+            {totalXpToday > 0 && (
+              <View style={[styles.chip, { backgroundColor: colors.warning + '22' }]}>
+                <Zap size={14} color={colors.warning} />
+                <Text style={[styles.chipText, { color: colors.warning }]}>+{totalXpToday} XP</Text>
+              </View>
+            )}
+          </View>
+
+          <TabBar active={activeTab} onChange={setActiveTab} />
         </View>
 
-        <View style={styles.summaryRow}>
-          <View style={[styles.summaryChip, { backgroundColor: '#38BDF8' + '22' }]}>
-            <Droplets size={14} color="#38BDF8" />
-            <Text style={[styles.summaryChipText, { color: '#38BDF8' }]}>{(waterMl / 1000).toFixed(1)}L</Text>
-          </View>
-          <View style={[styles.summaryChip, { backgroundColor: colors.primaryGlow }]}>
-            <Utensils size={14} color={colors.primary} />
-            <Text style={[styles.summaryChipText, { color: colors.primary }]}>
-              {loggedCount}/{planItems.length} ref.
-            </Text>
-          </View>
-          {totalXpToday > 0 && (
-            <View style={[styles.summaryChip, { backgroundColor: colors.warning + '22' }]}>
-              <Zap size={14} color={colors.warning} />
-              <Text style={[styles.summaryChipText, { color: colors.warning }]}>+{totalXpToday} XP</Text>
-            </View>
-          )}
-        </View>
+        {/* Tab: Meu Plano */}
+        {activeTab === 'plan' && (
+          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+            {isLoading ? (
+              <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.md }} />
+            ) : error ? (
+              <Text style={styles.errorText}>{error}</Text>
+            ) : !plan ? (
+              <PlanEmptyState />
+            ) : (
+              <>
+                <PlanHeader />
 
-        <TabBar active={activeTab} onChange={setActiveTab} />
-      </View>
+                {/* Progress bar */}
+                {items.length > 0 && (
+                  <View style={[appStyles.dashboardCard, styles.progressCard]}>
+                    <View style={styles.progressTop}>
+                      <Text style={styles.progressLabel}>Progresso do dia</Text>
+                      <Text style={styles.progressCount}>{loggedCount}/{items.length}</Text>
+                    </View>
+                    <View style={styles.progressTrack}>
+                      <View
+                        style={[
+                          styles.progressFill,
+                          { width: `${items.length > 0 ? Math.round((loggedCount / items.length) * 100) : 0}%` as `${number}%` },
+                        ]}
+                      />
+                    </View>
+                    {loggedCount === items.length && items.length > 0 && (
+                      <Text style={styles.completeText}>Plano completo! Parabéns.</Text>
+                    )}
+                  </View>
+                )}
 
-      {/* Tab: Meu Plano */}
-      {activeTab === 'plan' && (
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          {/* Progress card */}
-          {planItems.length > 0 && (
-            <View style={[appStyles.dashboardCard, styles.planProgressCard]}>
-              <View style={styles.planProgressTop}>
-                <Text style={styles.planProgressLabel}>Progresso do dia</Text>
-                <Text style={styles.planProgressCount}>{loggedCount}/{planItems.length}</Text>
-              </View>
-              <View style={styles.planProgressTrack}>
-                <View
-                  style={[
-                    styles.planProgressFill,
-                    { width: `${planItems.length > 0 ? Math.round((loggedCount / planItems.length) * 100) : 0}%` as `${number}%` }
-                  ]}
-                />
-              </View>
-              {loggedCount === planItems.length && planItems.length > 0 && (
-                <Text style={styles.planCompleteText}>Plano completo! Parabens.</Text>
-              )}
-            </View>
-          )}
+                {/* Meal groups */}
+                {MEAL_TIME_ORDER.filter(mt => grouped.has(mt)).map(mealTime => (
+                  <MealSection
+                    key={mealTime}
+                    mealTime={mealTime}
+                    items={grouped.get(mealTime)!}
+                    onLog={setSelectedItem}
+                  />
+                ))}
+              </>
+            )}
+          </ScrollView>
+        )}
 
-          {isLoading ? (
-            <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.md }} />
-          ) : planError ? (
-            <Text style={styles.errorText}>{planError}</Text>
-          ) : orderedGroups.length > 0 ? (
-            orderedGroups.map(({ mealTime, items }) => (
-              <View key={mealTime} style={styles.mealTimeGroup}>
-                <View style={styles.mealTimeLabelRow}>
-                  <View style={[styles.mealTimeDot, { backgroundColor: colors.primary }]} />
-                  <Text style={styles.mealTimeLabel}>{MEAL_TIME_LABELS[mealTime]}</Text>
-                  <Text style={styles.mealTimeCount}>{items.filter(i => i.logId).length}/{items.length}</Text>
+        {/* Tab: Água & Extra */}
+        {activeTab === 'extras' && (
+          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+            <View style={appStyles.dashboardCard}>
+              <View style={styles.sectionHeader}>
+                <View style={[styles.sectionIcon, { backgroundColor: '#38BDF8' + '22' }]}>
+                  <Droplets size={18} color="#38BDF8" />
                 </View>
-                {items.map(item => (
-                  <PlanItemCard key={item.itemId} item={item} onLog={setSelectedPlanItem} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.sectionTitle}>Água</Text>
+                  <Text style={styles.sectionSub}>
+                    {waterMl}ml / {WATER_GOAL_ML}ml · {Math.round(Math.min((waterMl / WATER_GOAL_ML) * 100, 100))}%
+                  </Text>
+                </View>
+              </View>
+              <WaterBar waterMl={waterMl} />
+              <View style={styles.waterBtns}>
+                {[250, 500, 750, 1000].map(ml => (
+                  <TouchableOpacity
+                    key={ml}
+                    style={[styles.waterBtn, isWaterLogging && styles.btnDisabled]}
+                    onPress={() => handleWater(ml)}
+                    disabled={isWaterLogging}
+                    activeOpacity={0.7}
+                  >
+                    {isWaterLogging
+                      ? <ActivityIndicator size="small" color="#38BDF8" />
+                      : <Text style={styles.waterBtnText}>+{ml}ml</Text>}
+                  </TouchableOpacity>
                 ))}
               </View>
-            ))
-          ) : (
-            <View style={styles.emptyPlan}>
-              <Utensils size={32} color={colors.muted} />
-              <Text style={styles.emptyTitle}>Sem plano ativo</Text>
-              <Text style={styles.emptySub}>Seu nutricionista ainda nao criou um plano para hoje.</Text>
             </View>
-          )}
-        </ScrollView>
-      )}
 
-      {/* Tab: Água & Extra */}
-      {activeTab === 'extras' && (
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          {/* Water card */}
-          <View style={appStyles.dashboardCard}>
-            <View style={styles.sectionHeader}>
-              <View style={[styles.sectionIconWrap, { backgroundColor: '#38BDF8' + '22' }]}>
-                <Droplets size={18} color="#38BDF8" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.sectionTitle}>Agua</Text>
-                <Text style={styles.sectionSub}>{waterMl}ml / {WATER_GOAL_ML}ml · {Math.round(Math.min((waterMl / WATER_GOAL_ML) * 100, 100))}%</Text>
-              </View>
+            <View style={styles.freeMealHeader}>
+              <Text style={appStyles.sectionTitle}>Registro livre</Text>
+              <TouchableOpacity style={styles.addFreeBtn} onPress={() => setShowFreeMeal(true)} activeOpacity={0.7}>
+                <Plus size={16} color={colors.primary} />
+                <Text style={styles.addFreeBtnText}>Adicionar</Text>
+              </TouchableOpacity>
             </View>
-            <WaterBar waterMl={waterMl} />
-            <View style={styles.waterBtns}>
-              {[250, 500, 750, 1000].map(ml => (
-                <TouchableOpacity
-                  key={ml}
-                  style={[styles.waterBtn, isWaterLogging && styles.btnDisabled]}
-                  onPress={() => handleWater(ml)}
-                  disabled={isWaterLogging}
-                  activeOpacity={0.7}
-                >
-                  {isWaterLogging
-                    ? <ActivityIndicator size="small" color="#38BDF8" />
-                    : <Text style={styles.waterBtnText}>+{ml}ml</Text>
-                  }
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
 
-          {/* Free meals */}
-          <View style={styles.freeMealHeader}>
-            <Text style={appStyles.sectionTitle}>Registro livre</Text>
-            <TouchableOpacity style={styles.addFreeBtn} onPress={() => setShowFreeMeal(true)} activeOpacity={0.7}>
-              <Plus size={16} color={colors.primary} />
-              <Text style={styles.addFreeBtnText}>Adicionar</Text>
-            </TouchableOpacity>
-          </View>
+            {freeMeals.length > 0 ? (
+              freeMeals.map(m => (
+                <View key={m.id} style={styles.freeMealCard}>
+                  <Text style={styles.freeMealName}>{m.foodName}</Text>
+                  <Text style={styles.freeMealMeta}>
+                    {m.quantity}{UNIT_LABELS[m.unit as MeasurementUnit] ?? m.unit}
+                    {m.calories ? ` · ${m.calories} kcal` : ''}
+                  </Text>
+                </View>
+              ))
+            ) : (
+              <Text style={styles.emptySub}>Nenhum registro livre hoje.</Text>
+            )}
+          </ScrollView>
+        )}
 
-          {freeMeals.length > 0 ? (
-            freeMeals.map(m => (
-              <View key={m.id} style={styles.freeMealCard}>
-                <Text style={styles.freeMealName}>{m.foodName}</Text>
-                <Text style={styles.freeMealMeta}>
-                  {m.quantity}{UNIT_LABELS[m.unit as MeasurementUnit] ?? m.unit}
-                  {m.calories ? ` · ${m.calories} kcal` : ''}
-                </Text>
-              </View>
-            ))
-          ) : (
-            <Text style={styles.emptySub}>Nenhum registro livre hoje.</Text>
-          )}
-        </ScrollView>
-      )}
+        {/* Modals */}
+        <LogItemModal
+          item={selectedItem}
+          isSubmitting={planDetail.isSubmitting}
+          onClose={() => setSelectedItem(null)}
+          onSubmit={handleLogItem}
+        />
 
-      <LogPlanModal
-        item={selectedPlanItem}
-        onClose={() => setSelectedPlanItem(null)}
-        onSubmit={handleLogPlanItem}
-        isLogging={isMealLogging}
-      />
-      <FreeMealModal
-        visible={showFreeMeal}
-        onClose={() => setShowFreeMeal(false)}
-        onSubmit={handleFreeMeal}
-        isLogging={isMealLogging}
-      />
-    </SafeAreaView>
+        <FreeMealModal
+          visible={showFreeMeal}
+          onClose={() => setShowFreeMeal(false)}
+          onSubmit={handleFreeMeal}
+          isLogging={isMealLogging}
+        />
+      </SafeAreaView>
+    </PlanDetailContext.Provider>
   );
 }
 
 const styles = StyleSheet.create({
-  content:         { padding: spacing.md, gap: spacing.md, paddingBottom: 100 },
-  header:          { padding: spacing.md, paddingBottom: 0, gap: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
-  pageHeader:      { gap: 2 },
-  summaryRow:      { flexDirection: 'row', gap: spacing.xs, flexWrap: 'wrap' },
-  summaryChip:     { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: spacing.sm, paddingVertical: 5, borderRadius: radius.full },
-  summaryChipText: { fontSize: fontSize.xs, fontWeight: '700' },
+  content:      { padding: spacing.md, gap: spacing.md, paddingBottom: 100 },
+  header:       { padding: spacing.md, paddingBottom: 0, gap: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
+  pageHeader:   { gap: 2 },
+  summaryRow:   { flexDirection: 'row', gap: spacing.xs, flexWrap: 'wrap' },
+  chip:         { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: spacing.sm, paddingVertical: 5, borderRadius: radius.full },
+  chipText:     { fontSize: fontSize.xs, fontWeight: '700' },
+  tabBar:       { flexDirection: 'row', gap: spacing.xs, marginTop: spacing.xs },
+  tabItem:      { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: spacing.sm, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  tabItemActive:{ backgroundColor: colors.primaryGlow, borderColor: colors.primary + '55' },
+  tabText:      { fontSize: fontSize.xs, fontWeight: '700', color: colors.muted },
+  tabTextActive:{ color: colors.primary },
 
-  tabBar:          { flexDirection: 'row', gap: spacing.xs, marginTop: spacing.xs },
-  tabItem:         { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: spacing.sm, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-  tabItemActive:   { backgroundColor: colors.primaryGlow, borderColor: colors.primary + '55' },
-  tabText:         { fontSize: fontSize.xs, fontWeight: '700', color: colors.muted },
-  tabTextActive:   { color: colors.primary },
+  progressCard:  { gap: spacing.sm },
+  progressTop:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  progressLabel: { color: colors.text, fontSize: fontSize.sm, fontWeight: '700' },
+  progressCount: { color: colors.primary, fontSize: fontSize.sm, fontWeight: '900' },
+  progressTrack: { height: 8, borderRadius: radius.full, backgroundColor: colors.surfaceHigh, overflow: 'hidden' },
+  progressFill:  { height: '100%', borderRadius: radius.full, backgroundColor: colors.primary },
+  completeText:  { color: colors.success, fontSize: fontSize.xs, fontWeight: '700', textAlign: 'center' },
 
-  planProgressCard:  { gap: spacing.sm },
-  planProgressTop:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  planProgressLabel: { color: colors.text, fontSize: fontSize.sm, fontWeight: '700' },
-  planProgressCount: { color: colors.primary, fontSize: fontSize.sm, fontWeight: '900' },
-  planProgressTrack: { height: 8, borderRadius: radius.full, backgroundColor: colors.surfaceHigh, overflow: 'hidden' },
-  planProgressFill:  { height: '100%', borderRadius: radius.full, backgroundColor: colors.primary },
-  planCompleteText:  { color: colors.success, fontSize: fontSize.xs, fontWeight: '700', textAlign: 'center' },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.sm },
+  sectionIcon:   { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  sectionTitle:  { color: colors.text, fontSize: fontSize.md, fontWeight: '700' },
+  sectionSub:    { color: colors.muted, fontSize: fontSize.xs },
 
-  mealTimeLabelRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  mealTimeDot:      { width: 8, height: 8, borderRadius: 4 },
-  mealTimeCount:    { marginLeft: 'auto', fontSize: fontSize.xs, color: colors.muted, fontWeight: '700' },
-
-  sectionHeader:   { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.sm },
-  sectionIconWrap: { width: 36, height: 36, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
-  sectionTitle:    { color: colors.text, fontSize: fontSize.md, fontWeight: '700' },
-  sectionSub:      { color: colors.muted, fontSize: fontSize.xs },
-
-  waterTrack:  { height: 10, borderRadius: radius.full, backgroundColor: colors.surfaceHigh, overflow: 'hidden', marginBottom: spacing.sm },
-  waterFill:   { height: '100%', borderRadius: radius.full },
-  waterBtns:   { flexDirection: 'row', gap: spacing.xs },
-  waterBtn:    { flex: 1, paddingVertical: spacing.xs, borderRadius: radius.md, backgroundColor: '#38BDF8' + '18', borderWidth: 1, borderColor: '#38BDF8' + '44', alignItems: 'center' },
+  waterTrack:   { height: 10, borderRadius: radius.full, backgroundColor: colors.surfaceHigh, overflow: 'hidden', marginBottom: spacing.sm },
+  waterFill:    { height: '100%', borderRadius: radius.full },
+  waterBtns:    { flexDirection: 'row', gap: spacing.xs },
+  waterBtn:     { flex: 1, paddingVertical: spacing.xs, borderRadius: 12, backgroundColor: '#38BDF8' + '18', borderWidth: 1, borderColor: '#38BDF8' + '44', alignItems: 'center' },
   waterBtnText: { color: '#38BDF8', fontSize: fontSize.xs, fontWeight: '700' },
-  btnDisabled: { opacity: 0.5 },
-
-  mealTimeGroup: { gap: spacing.xs },
-  mealTimeLabel: { color: colors.muted, fontSize: fontSize.xs, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
-
-  planCard:       { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, borderWidth: 1, borderColor: colors.border, ...shadow.sm },
-  planCardLogged: { borderColor: colors.success + '44', backgroundColor: colors.success + '08' },
-  planCardLeft:   { flex: 1, gap: 2 },
-  planFoodName:   { color: colors.text, fontSize: fontSize.md, fontWeight: '700' },
-  planMeta:       { color: colors.muted, fontSize: fontSize.xs },
-  planActual:     { color: colors.success, fontSize: fontSize.xs, fontWeight: '700', marginTop: 2 },
-  logBtn:         { backgroundColor: colors.primary, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderRadius: radius.md },
-  logBtnText:     { color: 'white', fontSize: fontSize.xs, fontWeight: '700' },
-
-  emptyPlan:  { alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xl },
-  emptyTitle: { color: colors.text, fontSize: fontSize.md, fontWeight: '700' },
-  emptySub:   { color: colors.muted, fontSize: fontSize.sm, textAlign: 'center' },
-  errorText:  { color: colors.danger, fontSize: fontSize.sm, textAlign: 'center' },
+  btnDisabled:  { opacity: 0.5 },
 
   freeMealHeader:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  addFreeBtn:      { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderRadius: radius.md, borderWidth: 1, borderColor: colors.primary + '55', backgroundColor: colors.primaryGlow },
+  addFreeBtn:      { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderRadius: 12, borderWidth: 1, borderColor: colors.primary + '55', backgroundColor: colors.primaryGlow },
   addFreeBtnText:  { color: colors.primary, fontSize: fontSize.xs, fontWeight: '700' },
-  freeMealCard:    { backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.sm, borderWidth: 1, borderColor: colors.border, gap: 2 },
+  freeMealCard:    { backgroundColor: colors.surface, borderRadius: 12, padding: spacing.sm, borderWidth: 1, borderColor: colors.border, gap: 2 },
   freeMealName:    { color: colors.text, fontSize: fontSize.sm, fontWeight: '600' },
   freeMealMeta:    { color: colors.muted, fontSize: fontSize.xs },
+  emptySub:        { color: colors.muted, fontSize: fontSize.sm, textAlign: 'center' },
+  errorText:       { color: colors.danger, fontSize: fontSize.sm, textAlign: 'center' },
 
-  overlay:     { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  sheet:       { backgroundColor: colors.surface, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: spacing.xl, gap: spacing.md },
-  sheetTitle:  { color: colors.text, fontSize: fontSize.xl, fontWeight: '900' },
-  sheetSub:    { color: colors.muted, fontSize: fontSize.sm, marginTop: -spacing.sm },
-  fieldLabel:  { color: colors.textSecondary, fontSize: fontSize.sm, fontWeight: '700' },
-  input:       { backgroundColor: colors.background, borderRadius: radius.md, padding: spacing.md, color: colors.text, borderWidth: 1, borderColor: colors.border, fontSize: fontSize.md },
-  inputMulti:  { minHeight: 72, textAlignVertical: 'top' },
-  unitChip:        { paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderRadius: radius.full, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background },
-  unitChipActive:  { borderColor: colors.primary, backgroundColor: colors.primaryGlow },
-  unitChipText:    { color: colors.muted, fontSize: fontSize.xs, fontWeight: '700' },
+  overlay:      { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  sheet:        { backgroundColor: colors.surface, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: spacing.xl, gap: spacing.md },
+  sheetTitle:   { color: colors.text, fontSize: fontSize.xl, fontWeight: '900' },
+  fieldLabel:   { color: colors.textSecondary, fontSize: fontSize.sm, fontWeight: '700' },
+  input:        { backgroundColor: colors.background, borderRadius: 12, padding: spacing.md, color: colors.text, borderWidth: 1, borderColor: colors.border, fontSize: fontSize.md },
+  unitChip:         { paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderRadius: radius.full, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background },
+  unitChipActive:   { borderColor: colors.primary, backgroundColor: colors.primaryGlow },
+  unitChipText:     { color: colors.muted, fontSize: fontSize.xs, fontWeight: '700' },
   unitChipTextActive: { color: colors.primary },
-  sheetBtns:   { flexDirection: 'row', gap: spacing.md, marginTop: spacing.xs },
-  cancelBtn:   { flex: 1, padding: spacing.md, borderRadius: radius.md, alignItems: 'center', backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border },
-  cancelBtnText: { color: colors.text, fontWeight: '600' },
-  confirmBtn:  { flex: 1, padding: spacing.md, borderRadius: radius.md, alignItems: 'center', backgroundColor: colors.primary },
+  sheetBtns:    { flexDirection: 'row', gap: spacing.md, marginTop: spacing.xs },
+  cancelBtn:    { flex: 1, padding: spacing.md, borderRadius: 12, alignItems: 'center', backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border },
+  cancelBtnText:{ color: colors.text, fontWeight: '600' },
+  confirmBtn:   { flex: 1, padding: spacing.md, borderRadius: 12, alignItems: 'center', backgroundColor: colors.primary },
   confirmBtnText: { color: 'white', fontWeight: '700' },
 });
