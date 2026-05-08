@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/shared/infrastructure/supabase/client';
 import { User, AuthState } from '../domain/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -49,7 +50,7 @@ export const useAuth = () => {
   // Trava para evitar operações de autenticação concorrentes
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const updateSession = async (session: any) => {
+  const updateSession = async (session: Session | null) => {
     try {
       if (session?.user) {
         // 1. Primeiro atualiza o interceptor para garantir que o ID esteja nos headers

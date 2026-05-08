@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { FlatList, View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CheckCircle, XCircle, Clock, Plus, UserPlus, Stethoscope, ChevronRight } from 'lucide-react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import { appStyles, colors, spacing, radius, fontSize, shadow } from '@/shared/theme';
 import type { NutritionistRequest } from '../domain/admin';
 import { useNutritionists } from '../hooks/useNutritionists';
@@ -68,8 +68,7 @@ export function AdminNutritionistsScreen() {
   };
 
   const handleOpenPatients = (item: NutritionistRequest) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    router.push({ pathname: '/nutritionist-patients' as any, params: { id: item.id, name: item.name } });
+    router.push({ pathname: '/nutritionist-patients', params: { id: item.id, name: item.name } } as Href);
   };
 
   const approved = nutritionists.filter(n => n.status === 'APPROVED').length;

@@ -9,6 +9,12 @@ type NutritionistDetailsRow = {
   status?: NutritionistRequest['status'] | null;
 };
 
+type ProfileRow = {
+  id: string;
+  name: string;
+  details: NutritionistDetailsRow | NutritionistDetailsRow[] | null;
+};
+
 const firstDetail = (details: NutritionistDetailsRow | NutritionistDetailsRow[] | null): NutritionistDetailsRow | null => {
   if (Array.isArray(details)) return details[0] ?? null;
   return details ?? null;
@@ -41,7 +47,7 @@ export const useNutritionists = () => {
 
       if (fetchErr) throw fetchErr;
 
-      const formatted = (data || []).map((row: any) => {
+      const formatted = (data || []).map((row: ProfileRow) => {
         const detail = firstDetail(row.details);
 
         return {
@@ -53,8 +59,8 @@ export const useNutritionists = () => {
       });
 
       setNutritionists(formatted);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Erro ao buscar nutricionistas');
     } finally {
       setIsLoading(false);
     }

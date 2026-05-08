@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '@/shared/infrastructure/supabase/client';
 
 export interface AuditLog {
@@ -7,8 +8,8 @@ export interface AuditLog {
   table_name: string;
   action: 'INSERT' | 'UPDATE' | 'DELETE';
   actor_role: string;
-  old_data: any;
-  new_data: any;
+  old_data: Record<string, unknown> | null;
+  new_data: Record<string, unknown> | null;
 }
 
 export const useAuditLogs = () => {
@@ -20,11 +21,8 @@ export const useAuditLogs = () => {
     setIsLoading(true);
     setError(null);
     try {
-      // Note: unified_logs is in 'audit' schema, so we access it via the specific table name
-      // If the client is configured only for 'public', we might need a RPC or raw query,
-      // but usually Supabase client can access other schemas if permissions allow.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error: fetchErr } = await (supabase as any)
+      // The generated Database type only covers 'public'; cast to untyped client to access 'audit' schema.
+      const { data, error: fetchErr } = await (supabase as unknown as SupabaseClient)
         .schema('audit')
         .from('unified_logs')
         .select('*')
@@ -33,9 +31,8 @@ export const useAuditLogs = () => {
 
       if (fetchErr) throw fetchErr;
       setLogs((data as unknown) as AuditLog[]);
-    } catch (err: any) {
-      console.error('Audit Log Fetch Error:', err);
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Erro ao carregar logs de auditoria');
     } finally {
       setIsLoading(false);
     }

@@ -1,5 +1,5 @@
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useRouter, usePathname } from 'expo-router';
+import { useRouter, usePathname, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Building2, Calendar, Home, Stethoscope, Trophy, TrendingUp, User, Users, UtensilsCrossed,
@@ -69,8 +69,8 @@ export function PersistentTabBar({ activeTab }: PersistentTabBarProps) {
           <TouchableOpacity
             key={tab.route}
             style={[styles.item, active && styles.itemActive]}
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            onPress={() => router.navigate((ROUTE_TO_PATH[tab.route] ?? `/(tabs)/${tab.route}`) as any)}
+            
+            onPress={() => router.navigate((ROUTE_TO_PATH[tab.route] ?? `/(tabs)/${tab.route}`) as Href)}
             activeOpacity={0.7}
             accessibilityLabel={tab.accessibilityLabel}
           >

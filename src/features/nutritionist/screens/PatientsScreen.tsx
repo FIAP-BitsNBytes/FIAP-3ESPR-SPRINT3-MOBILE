@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { FlatList, View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AlertTriangle, ChevronRight, Flame, Plus, UserPlus, Users } from 'lucide-react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import { appStyles, colors, spacing, radius, fontSize, shadow } from '@/shared/theme';
 import { useClinicPatients, type ClinicPatient } from '../hooks/useClinicPatients';
 import { useInviteUser } from '@/shared/hooks/useInviteUser';
@@ -30,6 +30,9 @@ function PatientRow({ item, onPress }: { item: ClinicPatient; onPress: () => voi
             </View>
             <View style={[styles.chip, { backgroundColor: colors.primaryGlow }]}>
               <Text style={[styles.chipText, { color: colors.primary }]}>{item.points} pts</Text>
+            </View>
+            <View style={[styles.chip, { backgroundColor: '#A78BFA22' }]}>
+              <Text style={[styles.chipText, { color: '#A78BFA' }]}>{item.experience} xp</Text>
             </View>
           </View>
         </View>
@@ -72,8 +75,8 @@ export function NutritionistPatientsScreen() {
   };
 
   const handleOpenPatient = (item: ClinicPatient) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    router.push({ pathname: '/patient-progress' as any, params: { patientId: item.id, name: item.name } });
+    
+    router.push({ pathname: '/patient-progress', params: { patientId: item.id, name: item.name } } as Href);
   };
 
   return (

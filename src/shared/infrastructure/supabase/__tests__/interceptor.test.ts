@@ -2,7 +2,8 @@ import { supabaseFetch, updateInterceptorUserId } from '../interceptor';
 
 // Mockando globais
 global.fetch = jest.fn();
-(global as any).__DEV__ = true;
+// __DEV__ é um global do React Native; Object.assign injeta no objeto global sem exigir cast.
+Object.assign(global, { __DEV__: true });
 
 // Mock do Platform (React Native)
 jest.mock('react-native', () => ({
