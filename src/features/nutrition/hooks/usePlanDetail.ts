@@ -124,7 +124,6 @@ export function usePlanDetail(patientId?: string | null, date?: string): PlanDet
         }
 
         setIsLoading(false);
-        // Real-time: re-fetch when any log for this patient changes
         if (!channel && patientId) {
           channel = supabase
             .channel(uniqueChannelName('plan-detail', patientId))
