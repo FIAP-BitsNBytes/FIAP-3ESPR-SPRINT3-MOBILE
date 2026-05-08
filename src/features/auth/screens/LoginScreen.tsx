@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -9,8 +10,9 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { LockKeyhole, Mail, ShieldCheck, Stethoscope } from 'lucide-react-native';
+import { LockKeyhole, Mail, ShieldCheck } from 'lucide-react-native';
 import { useAuthContext } from '../context/AuthContext';
+import { useAppPreferences } from '@/shared/hooks/useAppPreferences';
 import { appStyles } from '@/shared/theme/appStyles';
 import { colors, fontSize, radius, spacing } from '@/shared/theme';
 
@@ -18,12 +20,19 @@ type FocusedField = 'email' | 'password' | null;
 
 export function LoginScreen() {
   const { login } = useAuthContext();
+  const { preferences, isLoaded, updatePreferences } = useAppPreferences();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [focusedField, setFocusedField] = useState<FocusedField>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (isLoaded && preferences.lastEmail) {
+      setEmail(preferences.lastEmail);
+    }
+  }, [isLoaded]);
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
@@ -36,6 +45,7 @@ export function LoginScreen() {
 
     try {
       await login(email.trim(), password);
+      await updatePreferences({ lastEmail: email.trim() });
       // AuthGate em _layout.tsx navega para /(tabs) via onAuthStateChange
     } catch {
       setError('E-mail ou senha invalidos.');
@@ -55,9 +65,11 @@ export function LoginScreen() {
       >
         <View style={styles.brandPanel}>
           <View style={styles.brandTopRow}>
-            <View style={appStyles.iconBadge}>
-              <Stethoscope size={22} color={colors.primary} />
-            </View>
+            <Image
+              source={require('../../../../assets/images/icon.png')}
+              style={styles.logo}
+              accessibilityLabel="NutriApp logo"
+            />
             <View style={styles.brandCopy}>
               <Text style={appStyles.eyebrow}>NutriApp</Text>
               <Text style={styles.brandLockup}>Clinica conectada</Text>
@@ -174,6 +186,11 @@ const styles = {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: spacing.md,
+  },
+  logo: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.md,
   },
   brandCopy: {
     flex: 1,
