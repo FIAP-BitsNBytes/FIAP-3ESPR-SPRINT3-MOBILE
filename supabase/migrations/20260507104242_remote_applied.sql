@@ -1,0 +1,1 @@
+-- Migration applied directly on remote. Stub for CLI sync.

@@ -1,0 +1,79 @@
+-- ============================================================
+-- Migration: Drop ALL create_meal_plan overloads via pg_proc
+-- The extended remote version (with p_protein_goal_g etc.)
+-- still coexists with the canonical one, causing PGRST203.
+-- This DO block drops every overload regardless of signature,
+-- then recreates the single canonical function.
+-- ============================================================
+
+DO $$
+DECLARE
+  r record;
+BEGIN
+  FOR r IN
+    SELECT oid::regprocedure::text AS sig
+    FROM pg_proc
+    WHERE proname = 'create_meal_plan'
+      AND pronamespace = 'public'::regnamespace
+  LOOP
+    EXECUTE 'DROP FUNCTION IF EXISTS ' || r.sig || ' CASCADE';
+  END LOOP;
+END;
+$$;
+
+-- Recreate canonical version
+CREATE FUNCTION public.create_meal_plan(
+  p_patient_id uuid,
+  p_title      text,
+  p_start_date date,
+  p_end_date   date DEFAULT NULL,
+  p_notes      text DEFAULT NULL
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+DECLARE
+  v_uid       uuid := auth.uid();
+  v_clinic_id uuid;
+  v_role      user_role;
+  v_plan_id   uuid;
+BEGIN
+  IF v_uid IS NULL THEN
+    RAISE EXCEPTION 'UNAUTHORIZED' USING ERRCODE = 'P0001';
+  END IF;
+
+  SELECT role, clinic_id INTO v_role, v_clinic_id
+  FROM public.profiles WHERE id = v_uid;
+
+  IF v_role NOT IN ('NUTRITIONIST', 'ADMIN') THEN
+    RAISE EXCEPTION 'FORBIDDEN' USING ERRCODE = 'P0001';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = p_patient_id AND clinic_id = v_clinic_id AND role = 'PATIENT'
+  ) THEN
+    RAISE EXCEPTION 'NOT_FOUND: patient not in your clinic' USING ERRCODE = 'P0002';
+  END IF;
+
+  UPDATE public.meal_plans
+  SET is_active = false, updated_at = now()
+  WHERE patient_id = p_patient_id AND clinic_id = v_clinic_id AND is_active = true;
+
+  INSERT INTO public.meal_plans (
+    clinic_id, patient_id, nutritionist_id,
+    title, start_date, end_date, notes
+  ) VALUES (
+    v_clinic_id, p_patient_id, v_uid,
+    p_title, p_start_date, p_end_date, p_notes
+  )
+  RETURNING id INTO v_plan_id;
+
+  RETURN v_plan_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.create_meal_plan(uuid, text, date, date, text) FROM PUBLIC, anon;
+GRANT  EXECUTE ON FUNCTION public.create_meal_plan(uuid, text, date, date, text) TO authenticated;
