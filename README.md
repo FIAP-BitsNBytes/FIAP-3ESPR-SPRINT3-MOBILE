@@ -12,7 +12,6 @@ Plataforma de saúde e nutrição com gamificação, monitoramento clínico em t
 | Jó Sales | RM 552679 |
 | Miguel Garcez de Carvalho | RM 553768 |
 | Vinicius Souza e Silva | RM 552781 |
-| Edson Leonardo | RM 553737 |
 
 **Turma:** 3ESPR · FIAP · Sprint 3 · 2026
 
