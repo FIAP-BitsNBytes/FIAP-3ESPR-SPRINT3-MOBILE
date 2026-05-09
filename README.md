@@ -16,6 +16,11 @@ Plataforma de saúde e nutrição com gamificação, monitoramento clínico em t
 **Turma:** 3ESPR · FIAP · Sprint 3 · 2026
 
 ---
+### Video de demonstração
+
+https://youtu.be/NwxQx9X8AxA?si=VyvlnHA5xhtWSzjB
+ 
+---
 
 ## Instalação
 
