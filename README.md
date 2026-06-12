@@ -553,18 +553,24 @@ Supabase Realtime (subscriptions em tempo real)
 
 ### Camada 2 — Banco de Dados (Row Level Security)
 
-| Tabela | Admin | Nutricionista | Paciente |
-|--------|-------|---------------|---------|
-| `profiles` | Leitura da clínica | Leitura dos pacientes | Apenas próprio perfil |
-| `meal_plans` | — | CRUD completo | Leitura |
-| `meal_logs` | — | Leitura | CRUD próprio |
-| `appointments` | — | CRUD | Leitura |
-| `gamification_stats` | Leitura | Leitura | Leitura próprio |
+Modelo de **carteira por nutricionista** (migration `20260611150000`): o vínculo paciente→nutricionista vive em `patient_details.nutritionist_id` (definido no convite) e é a base de todas as políticas clínicas, via helpers `SECURITY DEFINER` (`is_my_patient`, `get_my_nutritionist`, `clinic_has_medical_consent`).
+
+| Tabela | Admin (clínica) | Nutricionista | Paciente |
+|--------|-----------------|---------------|---------|
+| `profiles` | Leitura da clínica toda | **Só os próprios pacientes** | **Só o próprio nutricionista** + próprio perfil |
+| `meal_plans` / `meal_plan_items` | — | CRUD **só dos próprios pacientes** | Leitura do próprio |
+| `meal_logs` | Só com consentimento† | Leitura **só dos próprios pacientes** | CRUD próprio |
+| `evolution_logs` | Só com consentimento† | CRUD **só dos próprios pacientes** | Leitura próprio |
+| `appointments` | Leitura da clínica (operacional) | CRUD **só da própria agenda** | Leitura próprio |
+| `gamification_stats` | Leitura da clínica (não-médico) | **Só os próprios pacientes** | Próprio |
+| Storage `meal-photos` | — | Fotos **só dos próprios pacientes** | Própria pasta (`{uid}/`) |
 | `audit.unified_logs` | Leitura total | — | — |
 | `clinics` | CRUD | Leitura | — |
 | `nutritionist_details` | CRUD | Próprio | — |
 
-> Admin **não acessa** dados clínicos sensíveis dos pacientes por política RLS.
+† **Consentimento:** `patient_details.clinic_access_granted` (default `false`). O nutricionista responsável pode autorizar a clínica a ler os dados clínicos de um paciente específico. Sem essa permissão, admin **nunca** acessa dado médico.
+
+O **ranking gamificado** continua quantificando a clínica inteira via RPC `get_gamification_ranking` (`SECURITY DEFINER`, escopo por clínica) — expõe apenas nome + pontos/nível/streak, nenhum dado clínico.
 
 ---
 
