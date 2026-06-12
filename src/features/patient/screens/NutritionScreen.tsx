@@ -8,6 +8,7 @@ import { useTodayLogs } from '../hooks/useTodayLogs';
 import { useLogMeal, type LogFreeMealParams } from '../hooks/useLogMeal';
 import type { MeasurementUnit } from '../hooks/useDailyPlan';
 import { NutritionTabBar, type Tab, WaterSection, FreeMealModal, SmartBottleCard } from '../components/nutrition';
+import { useSmartBottle } from '../hooks/useSmartBottle';
 
 import { usePlanDetail } from '@/features/nutrition/hooks/usePlanDetail';
 import { PlanDetailContext } from '@/features/nutrition/context/PlanDetailContext';
@@ -27,6 +28,7 @@ export function PatientNutritionScreen() {
   const planDetail = usePlanDetail(undefined, today);
   const { waterMl, meals, isLoading: isTodayLogsLoading } = useTodayLogs();
   const { logWater, isLogging: isWaterLogging } = useLogWater();
+  const { status: bottleStatus, lastReading: bottleReading, connect: bottleConnect, disconnect: bottleDisconnect, error: bottleError } = useSmartBottle();
   const { logFreeMeal, isLogging: isMealLogging } = useLogMeal();
 
   const [selectedItem, setSelectedItem] = useState<PlanItem | null>(null);
@@ -149,7 +151,13 @@ export function PatientNutritionScreen() {
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             <WaterSection waterMl={waterMl} isLogging={isWaterLogging} onLogWater={handleWater} />
 
-            <SmartBottleCard onLogHydration={handleWater} />
+            <SmartBottleCard
+              status={bottleStatus}
+              lastReading={bottleReading}
+              onConnect={bottleConnect}
+              onDisconnect={bottleDisconnect}
+              error={bottleError}
+            />
 
             <View style={styles.freeMealHeader}>
               <Text style={appStyles.sectionTitle}>Registro livre</Text>

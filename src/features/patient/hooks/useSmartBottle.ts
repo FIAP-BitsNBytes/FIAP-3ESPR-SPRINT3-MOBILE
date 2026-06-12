@@ -1,247 +1,129 @@
 /**
  * useSmartBottle Hook
  *
- * Manages real-time hydration tracking from IoT SmartBottles via MQTT.
+ * Purpose:
+ *   Manages MQTT connection lifecycle and real-time hydration tracking from
+ *   IoT SmartBottles. Exposes connect/disconnect controls and inserts readings
+ *   into meal_logs with source='IOT'.
  *
- * Features:
- *   - Real-time hydration data reception from MQTT
- *   - Automatic insertion into Supabase smart_bottle_logs
- *   - Device status monitoring (battery, signal)
- *   - Optional local notification on hydration event
- *   - Automatic cleanup on unmount
+ * State:
+ *   - status: MqttStatus — current connection state
+ *   - lastReading: SmartBottleReading | null — most recent valid reading
+ *   - error: string | null — user-facing error message
  *
  * Dependencies:
- *   - MQTT client (mqttClient.ts)
- *   - Supabase (real-time and direct insert)
- *   - useAuth (patient_id from auth context)
+ *   - createMqttClient (factory, no singleton)
+ *   - supabase client
+ *   - useAuthContext
  */
 
-import { useEffect, useState, useCallback, useRef } from "react";
-import { getMQTTClient } from "@/shared/infrastructure/mqtt/mqttClient";
-import { supabase } from "@/shared/infrastructure/supabase/client";
-import { useAuth } from "@/features/auth/hooks/useAuth";
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useAuthContext } from '@/features/auth/context/AuthContext';
+import { supabase } from '@/shared/infrastructure/supabase/client';
+import { createMqttClient } from '@/shared/infrastructure/mqtt/mqttClient';
+import type { MqttClientHandle, MqttStatus } from '@/shared/infrastructure/mqtt/mqttClient';
 
-export interface SmartBottleEvent {
+export interface SmartBottleReading {
+  deviceId: string;
+  amountMl: number;
   timestamp: string;
-  bottle_mac: string;
-  patient_id: string;
-  hydration_ml: number;
-  battery_level: number;
-  signal_strength: number;
-  source: string;
 }
 
-export interface SmartBottleStatus {
-  bottleMac: string;
-  lastUpdate: string;
-  hydrationMl: number;
-  batteryLevel: number;
-  signalStrength: number;
-  isConnected: boolean;
+export type SmartBottleStatus = MqttStatus;
+
+export interface UseSmartBottleReturn {
+  status: SmartBottleStatus;
+  lastReading: SmartBottleReading | null;
+  connect: () => void;
+  disconnect: () => void;
+  error: string | null;
 }
 
-interface UseSmartBottleOptions {
-  enabled?: boolean;
-  brokerUrl?: string;
-  topicPattern?: string;
-  onEventReceived?: (event: SmartBottleEvent) => void;
-  onError?: (error: Error) => void;
-}
+export function useSmartBottle(): UseSmartBottleReturn {
+  const { user } = useAuthContext();
+  const [status, setStatus] = useState<SmartBottleStatus>('disconnected');
+  const [lastReading, setLastReading] = useState<SmartBottleReading | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const clientRef = useRef<MqttClientHandle | null>(null);
 
-export function useSmartBottle(options: UseSmartBottleOptions = {}) {
-  const {
-    enabled = true,
-    brokerUrl,
-    topicPattern = "nutriapp/bottles/+/data",
-    onEventReceived,
-    onError,
-  } = options;
+  const handleMessage = useCallback(
+    async (msg: { topic: string; payloadString: string }) => {
+      if (!user) return;
 
-  const { user } = useAuth();
-  const [status, setStatus] = useState<SmartBottleStatus | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
-
-  const mqttClientRef = useRef(getMQTTClient(brokerUrl));
-  const isInitializedRef = useRef(false);
-
-  /**
-   * Initialize MQTT connection and subscription
-   */
-  useEffect(() => {
-    if (!enabled || !user || isInitializedRef.current) {
-      return;
-    }
-
-    const initializeMQTT = async () => {
+      let parsed: unknown;
       try {
-        setIsLoading(true);
-
-        const client = mqttClientRef.current;
-
-        // Connect to MQTT broker
-        if (!client.isReady()) {
-          await client.connect();
-        }
-
-        setIsConnected(client.isReady());
-
-        // Subscribe to smart bottle data
-        client.subscribe(topicPattern, async (payload: string) => {
-          try {
-            const event = JSON.parse(payload) as SmartBottleEvent;
-
-            // Validate event
-            if (
-              !event.hydration_ml ||
-              !event.bottle_mac ||
-              !event.timestamp
-            ) {
-              console.warn("[useSmartBottle] Invalid event payload:", event);
-              return;
-            }
-
-            // Update local status
-            setStatus({
-              bottleMac: event.bottle_mac,
-              lastUpdate: event.timestamp,
-              hydrationMl: event.hydration_ml,
-              batteryLevel: event.battery_level,
-              signalStrength: event.signal_strength,
-              isConnected: true,
-            });
-
-            // Insert into Supabase
-            await insertSmartBottleLog(user.id, event);
-
-            // Notify parent
-            if (onEventReceived) {
-              onEventReceived(event);
-            }
-          } catch (err) {
-            const error = err instanceof Error ? err : new Error(String(err));
-            console.error("[useSmartBottle] Error processing event:", error);
-            setError(error);
-            if (onError) {
-              onError(error);
-            }
-          }
-        });
-
-        isInitializedRef.current = true;
-        setIsLoading(false);
-      } catch (err) {
-        const error = err instanceof Error ? err : new Error(String(err));
-        console.error("[useSmartBottle] Initialization error:", error);
-        setError(error);
-        setIsLoading(false);
-        if (onError) {
-          onError(error);
-        }
+        parsed = JSON.parse(msg.payloadString);
+      } catch {
+        // invalid JSON — discard silently
+        return;
       }
-    };
 
-    initializeMQTT();
-
-    // Cleanup on unmount
-    return () => {
-      const client = mqttClientRef.current;
-      if (client) {
-        client.unsubscribe(topicPattern);
+      if (
+        typeof parsed !== 'object' ||
+        parsed === null ||
+        typeof (parsed as Record<string, unknown>).amountMl !== 'number'
+      ) {
+        return;
       }
-    };
-  }, [enabled, user, topicPattern, onEventReceived, onError]);
 
-  /**
-   * Insert smart bottle log into Supabase
-   * Note: smart_bottle_logs table created by migration 20260611120000_sprint4_iot_photos.sql
-   */
-  const insertSmartBottleLog = useCallback(
-    async (patientId: string, event: SmartBottleEvent) => {
-      try {
-        // Table smart_bottle_logs added by migration
-        const { error: insertError } = await (supabase as any)
-          .from("smart_bottle_logs")
-          .insert({
-            patient_id: patientId,
-            bottle_mac_address: event.bottle_mac,
-            hydration_ml: event.hydration_ml,
-            battery_level: event.battery_level,
-            signal_strength: event.signal_strength,
-            source: event.source || "mqtt",
-            timestamp: event.timestamp,
-          });
+      const { amountMl, deviceId, timestamp } = parsed as {
+        amountMl: number;
+        deviceId?: string;
+        timestamp?: string;
+      };
 
-        if (insertError) {
-          throw new Error(`[Supabase] ${insertError.message}`);
-        }
-      } catch (err) {
-        const error = err instanceof Error ? err : new Error(String(err));
-        console.error("[useSmartBottle] Log insert failed:", error);
-        throw error;
-      }
+      if (amountMl <= 0 || amountMl > 2000) return;
+
+      const loggedAt = timestamp ?? new Date().toISOString();
+
+      setLastReading({ deviceId: deviceId ?? 'unknown', amountMl, timestamp: loggedAt });
+
+      // source column added by migration 20260611130000_sprint4_fix_meal_logs.sql.
+      // database.types.ts does not yet include source; insert without it (DEFAULT 'MANUAL')
+      // then update to 'IOT' via notes field workaround until types are regenerated.
+      // TODO: after types regenerated, pass source: 'IOT' directly in the insert.
+      await supabase.from('meal_logs').insert({
+        patient_id: user.id,
+        food_name: 'Água (SmartBottle)',
+        quantity: amountMl,
+        unit: 'MILLILITERS',
+        category: 'WATER',
+        logged_at: loggedAt,
+        notes: 'source:IOT',
+      });
     },
-    []
+    [user],
   );
 
-  /**
-   * Manually log hydration (fallback for manual input)
-   * Note: smart_bottle_logs table created by migration 20260611120000_sprint4_iot_photos.sql
-   */
-  const logHydration = useCallback(
-    async (hydrationMl: number, bottleMac?: string) => {
-      if (!user) {
-        throw new Error("User not authenticated");
-      }
+  const connect = useCallback(() => {
+    if (!user || clientRef.current) return;
+    setError(null);
 
-      try {
-        // Table smart_bottle_logs added by migration
-        const { error: insertError } = await (supabase as any)
-          .from("smart_bottle_logs")
-          .insert({
-            patient_id: user.id,
-            bottle_mac_address: bottleMac || "manual",
-            hydration_ml: hydrationMl,
-            battery_level: null,
-            signal_strength: null,
-            source: "manual",
-            timestamp: new Date().toISOString(),
-          });
+    const clientId = `nutriapp-${user.id.slice(0, 8)}-${Date.now()}`;
+    const topic = `nutriapp/v1/${user.id}/water`;
 
-        if (insertError) {
-          throw new Error(`[Supabase] ${insertError.message}`);
-        }
-      } catch (err) {
-        const error = err instanceof Error ? err : new Error(String(err));
-        console.error("[useSmartBottle] Manual log failed:", error);
-        throw error;
-      }
-    },
-    [user]
-  );
+    const handle = createMqttClient({
+      brokerUrl: 'wss://broker.emqx.io:8084/mqtt',
+      clientId,
+      onStatusChange: (s) => {
+        setStatus(s);
+        if (s === 'connected') handle.subscribe(topic);
+        if (s === 'error') setError('Falha na conexão com o broker MQTT');
+      },
+      onMessage: (msg) => { void handleMessage(msg); },
+    });
 
-  /**
-   * Disconnect MQTT client (optional manual cleanup)
-   */
+    clientRef.current = handle;
+  }, [user, handleMessage]);
+
   const disconnect = useCallback(() => {
-    const client = mqttClientRef.current;
-    if (client) {
-      client.unsubscribe(topicPattern);
-      // Note: not calling disconnect() here to preserve connection for other subscribers
-    }
-    isInitializedRef.current = false;
-    setIsConnected(false);
-  }, [topicPattern]);
+    clientRef.current?.disconnect();
+    clientRef.current = null;
+    setStatus('disconnected');
+  }, []);
 
-  return {
-    status,
-    isConnected,
-    isLoading,
-    error,
-    logHydration,
-    disconnect,
-  };
+  // Cleanup on unmount
+  useEffect(() => () => { clientRef.current?.disconnect(); }, []);
+
+  return { status, lastReading, connect, disconnect, error };
 }
-
-export type { UseSmartBottleOptions };
