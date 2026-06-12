@@ -11,6 +11,7 @@ import { useTodayLogs } from '@/features/patient/hooks/useTodayLogs';
 import { DailyProgressItem, useProgressMetrics } from '@/features/patient/hooks/useProgressMetrics';
 import { usePlanDetail } from '@/features/nutrition/hooks/usePlanDetail';
 import { useDeviceStatus } from '../hooks/useDeviceStatus';
+import { usePatientConsent } from '../hooks/usePatientConsent';
 import {
   FreeMealLogsSection,
   InsightCard,
@@ -34,6 +35,7 @@ export function NutritionistPatientDetailScreen() {
   const { days, isLoading: isProgressLoading, error } = useProgressMetrics(patientId ?? null);
   const { plan, items: planItems, isLoading: isPlanLoading } = usePlanDetail(patientId ?? null);
   const { isOnline: isBottleOnline } = useDeviceStatus(patientId ?? null);
+  const { clinicAccessGranted, isLoading: isConsentLoading, toggleConsent } = usePatientConsent(patientId ?? null);
 
   const today = new Date().toISOString().slice(0, 10);
   const freeMeals = meals.filter(m => m.category === 'MEAL');
@@ -101,6 +103,9 @@ export function NutritionistPatientDetailScreen() {
         onBack={() => router.back()}
         onOpenMealPlan={goToMealPlan}
         isBottleOnline={isBottleOnline}
+        clinicAccessGranted={clinicAccessGranted}
+        onToggleClinicAccess={toggleConsent}
+        isTogglingAccess={isConsentLoading}
       />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>

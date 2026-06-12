@@ -1,5 +1,5 @@
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { ArrowLeft, ClipboardList } from 'lucide-react-native';
+import { StyleSheet, Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
+import { ArrowLeft, ClipboardList, Lock, LockOpen } from 'lucide-react-native';
 import { appStyles, colors, radius, spacing, fontSize } from '@/shared/theme';
 
 interface PatientDetailHeaderProps {
@@ -7,9 +7,26 @@ interface PatientDetailHeaderProps {
   onBack: () => void;
   onOpenMealPlan: () => void;
   isBottleOnline?: boolean;
+  clinicAccessGranted?: boolean;
+  onToggleClinicAccess?: () => Promise<void>;
+  isTogglingAccess?: boolean;
 }
 
-export function PatientDetailHeader({ patientName, onBack, onOpenMealPlan, isBottleOnline }: PatientDetailHeaderProps) {
+export function PatientDetailHeader({
+  patientName,
+  onBack,
+  onOpenMealPlan,
+  isBottleOnline,
+  clinicAccessGranted,
+  onToggleClinicAccess,
+  isTogglingAccess,
+}: PatientDetailHeaderProps) {
+  const handleToggleAccess = async () => {
+    if (onToggleClinicAccess && !isTogglingAccess) {
+      await onToggleClinicAccess();
+    }
+  };
+
   return (
     <View style={[appStyles.dashboardHeader, styles.header]}>
       <TouchableOpacity onPress={onBack} style={styles.backBtn}>
@@ -18,11 +35,35 @@ export function PatientDetailHeader({ patientName, onBack, onOpenMealPlan, isBot
       <View style={{ flex: 1 }}>
         <Text style={appStyles.dashboardTitle} numberOfLines={1}>{patientName}</Text>
         <Text style={appStyles.dashboardSubtitle}>Evolução e progresso</Text>
-        {isBottleOnline && (
-          <View style={styles.bottleBadge}>
-            <Text style={styles.bottleBadgeText}>💧 Garrafa online</Text>
-          </View>
-        )}
+        <View style={styles.badgesRow}>
+          {isBottleOnline && (
+            <View style={styles.bottleBadge}>
+              <Text style={styles.bottleBadgeText}>💧 Garrafa online</Text>
+            </View>
+          )}
+          {clinicAccessGranted !== undefined && (
+            <TouchableOpacity
+              style={[styles.consentBadge, clinicAccessGranted && styles.consentGranted]}
+              onPress={handleToggleAccess}
+              disabled={isTogglingAccess}
+            >
+              {isTogglingAccess ? (
+                <ActivityIndicator size="small" color={colors.text} />
+              ) : (
+                <>
+                  {clinicAccessGranted ? (
+                    <LockOpen size={12} color={colors.success} />
+                  ) : (
+                    <Lock size={12} color={colors.muted} />
+                  )}
+                  <Text style={[styles.consentText, clinicAccessGranted && styles.consentTextGranted]}>
+                    {clinicAccessGranted ? 'Clínica autorizada' : 'Clínica bloqueada'}
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
       <TouchableOpacity style={styles.mealPlanBtn} onPress={onOpenMealPlan}>
         <ClipboardList size={18} color={colors.primary} />
@@ -52,6 +93,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
     borderWidth: 1, borderColor: colors.border,
   },
+  badgesRow: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+    flexWrap: 'wrap',
+  },
   bottleBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -60,11 +107,34 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xs,
     paddingVertical: 2,
     alignSelf: 'flex-start',
-    marginTop: 2,
   },
   bottleBadgeText: {
     fontSize: fontSize.xs,
     color: colors.waterAccent,
     fontWeight: '700',
+  },
+  consentBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.muted + '15',
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 3,
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: colors.muted + '33',
+  },
+  consentGranted: {
+    backgroundColor: colors.success + '15',
+    borderColor: colors.success + '33',
+  },
+  consentText: {
+    fontSize: fontSize.xs,
+    color: colors.muted,
+    fontWeight: '600',
+  },
+  consentTextGranted: {
+    color: colors.success,
   },
 });
