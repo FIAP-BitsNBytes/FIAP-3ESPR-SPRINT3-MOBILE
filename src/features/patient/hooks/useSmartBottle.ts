@@ -22,6 +22,7 @@ import { useAuthContext } from '@/features/auth/context/AuthContext';
 import { supabase } from '@/shared/infrastructure/supabase/client';
 import { createMqttClient } from '@/shared/infrastructure/mqtt/mqttClient';
 import type { MqttClientHandle, MqttStatus } from '@/shared/infrastructure/mqtt/mqttClient';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 
 export interface SmartBottleReading {
   deviceId: string;
@@ -45,6 +46,7 @@ export function useSmartBottle(): UseSmartBottleReturn {
   const [lastReading, setLastReading] = useState<SmartBottleReading | null>(null);
   const [error, setError] = useState<string | null>(null);
   const clientRef = useRef<MqttClientHandle | null>(null);
+  const broadcastChannelRef = useRef<RealtimeChannel | null>(null);
 
   const handleMessage = useCallback(
     async (msg: { topic: string; payloadString: string }) => {
@@ -94,6 +96,12 @@ export function useSmartBottle(): UseSmartBottleReturn {
       }
 
       setLastReading(reading);
+
+      void broadcastChannelRef.current?.send({
+        type: 'broadcast',
+        event: 'bottle-status',
+        payload: { isOnline: true, patientId: user.id, lastSeen: loggedAt },
+      });
     },
     [user],
   );
@@ -110,23 +118,50 @@ export function useSmartBottle(): UseSmartBottleReturn {
       clientId,
       onStatusChange: (s) => {
         setStatus(s);
-        if (s === 'connected') clientRef.current?.subscribe(topic);
+        if (s === 'connected') {
+          clientRef.current?.subscribe(topic);
+          void broadcastChannelRef.current?.send({
+            type: 'broadcast',
+            event: 'bottle-status',
+            payload: { isOnline: true, patientId: user.id },
+          });
+        }
         if (s === 'error') setError('Falha na conexão com o broker MQTT');
       },
       onMessage: (msg) => { void handleMessage(msg); },
     });
 
     clientRef.current = handle;
+
+    const channelName = `device-status:${user.id}`;
+    const broadcastChannel = supabase.channel(channelName);
+    broadcastChannel.subscribe();
+    broadcastChannelRef.current = broadcastChannel;
   }, [user, handleMessage]);
 
   const disconnect = useCallback(() => {
+    void broadcastChannelRef.current?.send({
+      type: 'broadcast',
+      event: 'bottle-status',
+      payload: { isOnline: false, patientId: user?.id },
+    });
+    if (broadcastChannelRef.current) {
+      supabase.removeChannel(broadcastChannelRef.current);
+      broadcastChannelRef.current = null;
+    }
     clientRef.current?.disconnect();
     clientRef.current = null;
     setStatus('disconnected');
-  }, []);
+  }, [user?.id]);
 
   // Cleanup on unmount
-  useEffect(() => () => { clientRef.current?.disconnect(); }, []);
+  useEffect(() => () => {
+    clientRef.current?.disconnect();
+    if (broadcastChannelRef.current) {
+      supabase.removeChannel(broadcastChannelRef.current);
+      broadcastChannelRef.current = null;
+    }
+  }, []);
 
   return { status, lastReading, connect, disconnect, error };
 }
