@@ -78,18 +78,14 @@ export function useSmartBottle(): UseSmartBottleReturn {
 
       setLastReading({ deviceId: deviceId ?? 'unknown', amountMl, timestamp: loggedAt });
 
-      // source column added by migration 20260611130000_sprint4_fix_meal_logs.sql.
-      // database.types.ts does not yet include source; insert without it (DEFAULT 'MANUAL')
-      // then update to 'IOT' via notes field workaround until types are regenerated.
-      // TODO: after types regenerated, pass source: 'IOT' directly in the insert.
       await supabase.from('meal_logs').insert({
         patient_id: user.id,
         food_name: 'Água (SmartBottle)',
         quantity: amountMl,
         unit: 'MILLILITERS',
         category: 'WATER',
+        source: 'IOT',
         logged_at: loggedAt,
-        notes: 'source:IOT',
       });
     },
     [user],

@@ -262,8 +262,10 @@ export type Database = {
           notes: string | null
           nutritionist_id: string | null
           patient_id: string
+          photo_path: string | null
           plan_item_id: string | null
           quantity: number
+          source: string
           unit: Database["public"]["Enums"]["measurement_unit"]
           updated_at: string
           updated_by: string | null
@@ -282,8 +284,10 @@ export type Database = {
           notes?: string | null
           nutritionist_id?: string | null
           patient_id: string
+          photo_path?: string | null
           plan_item_id?: string | null
           quantity?: number
+          source?: string
           unit?: Database["public"]["Enums"]["measurement_unit"]
           updated_at?: string
           updated_by?: string | null
@@ -302,8 +306,10 @@ export type Database = {
           notes?: string | null
           nutritionist_id?: string | null
           patient_id?: string
+          photo_path?: string | null
           plan_item_id?: string | null
           quantity?: number
+          source?: string
           unit?: Database["public"]["Enums"]["measurement_unit"]
           updated_at?: string
           updated_by?: string | null
