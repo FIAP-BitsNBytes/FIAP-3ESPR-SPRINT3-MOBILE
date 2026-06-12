@@ -305,6 +305,71 @@ Navegação por período com `movePeriod(+1/-1)`. Dia atual destacado. `Appointm
 
 ---
 
+## Sprint 4 — IoT + Câmera
+
+### SmartBottle IoT (Rastreamento Automático de Hidratação)
+
+**Tela:** Integrado em `HomeScreen` (paciente) · **Hook:** `useSmartBottle`, `useDeviceStatus`
+
+Conexão MQTT sobre WebSocket para garrafa inteligente. O paciente conecta a garrafa via botão "Conectar" na Home. A partir disso, cada vez que a garrafa detecta consumo de água (>0 mL, ≤2000 mL), publica um payload JSON no tópico `nutriapp/v1/{patientId}/water`:
+
+```json
+{ "amountMl": 250, "deviceId": "bottle-001", "timestamp": "2025-06-11T10:30:00Z" }
+```
+
+O app consome via hook `useSmartBottle`:
+1. Valida o payload (`parseSmartBottlePayload` — JSON, amountMl número, 0 < amountMl ≤ 2000)
+2. Insere em `meal_logs` com `source='IOT'`, `category='WATER'`
+3. Emite broadcast Supabase Realtime no canal `device-status:{patientId}` com `{ isOnline: true, lastSeen }`
+4. Nutricionista recebe badge "💧 Garrafa online" no card do paciente (via `useDeviceStatus`)
+
+Broker público: `wss://broker.emqx.io:8084/mqtt` (app) / `mqtt://broker.emqx.io:1883` (simulador Node.js)
+
+**Setup do Simulador:**
+```bash
+cd scripts/iot-simulator
+npm install
+node simulator.js --patient <uuid> [--interval 8]
+```
+
+**Permissões:** Nenhuma (MQTT via WebSocket)
+
+### Foto de Refeição (Câmera/Galeria Nativa)
+
+**Tela:** Integrado em `NutritionScreen` (FreeMealModal) · **Hook:** `useImagePicker`
+
+Dois botões: "📷 Câmera" (captura) e "🖼 Galeria" (seleção). O app solicita permissão (Android/iOS), abre a picker nativa (expo-image-picker), comprime a imagem a 60% de qualidade e faz upload para Supabase Storage (bucket `meal-photos`).
+
+Fluxo:
+1. Usuário clica câmera/galeria em `FreeMealModal`
+2. `useImagePicker.pickFromCamera()` ou `pickFromGallery()` — solicita permissão
+3. Se concedida, lança picker nativa
+4. Usuário captura/seleciona imagem → `ImageAsset { uri, width, height }`
+5. Clica "Registrar" → `uploadMealPhoto(patientId, uri)`
+6. Fetch blob, upload com Supabase Storage
+7. Retorna `path: 'patientId/timestamp.jpg'`
+8. RPC `log_free_meal` com `photo_path`
+9. `MealItemRow` exibe thumbnail via `getSignedPhotoUrl(path)` — signed URL válida 1 hora
+
+**Permissões (iOS/Android):**
+- Camera: `NSCameraUsageDescription` (iOS) / `android.permission.CAMERA` (Android)
+- Photo Library: `NSPhotoLibraryUsageDescription` (iOS) / `android.permission.READ_EXTERNAL_STORAGE` (Android)
+
+### Testes Inclusos
+
+**4a. `useSmartBottle.payload.test.ts`** — 11 testes da função `parseSmartBottlePayload`
+- JSON inválido, tipos incorretos, boundaries (0, -1, 2001), defaults (deviceId, timestamp)
+
+**4b. `useImagePicker.test.ts`** — 6 testes do hook
+- Estados iniciais, permissão denied, camera/gallery picker, clearAsset
+
+**4c. `storage.test.ts`** — 4 testes das funções de armazenamento
+- Upload success/failure, getSignedPhotoUrl success/failure
+
+Resultado: **104 testes passando** (baseline 93 + 11 novos)
+
+---
+
 ### Gamificação (transversal)
 
 **Hook:** `useGamification` (shared)
@@ -512,6 +577,8 @@ Os dados persistem após o fechamento do app e são restaurados automaticamente 
 | [React Native Reanimated](https://docs.swmansion.com/react-native-reanimated/) | 4.1.1 | Animações nativas |
 | [Lucide React Native](https://lucide.dev/) | 1.14.0 | Biblioteca de ícones |
 | [React Native Safe Area Context](https://github.com/th3rdwave/react-native-safe-area-context) | 5.6.0 | Safe areas iOS/Android |
+| [paho-mqtt](https://www.eclipse.org/paho/clients/js/) | 1.1.1 | Conectividade MQTT (IoT SmartBottle) |
+| [expo-image-picker](https://docs.expo.dev/versions/latest/sdk/imagepicker/) | ~15.0.0 | Câmera e galeria nativa |
 | [Jest](https://jestjs.io/) | 30.x | Testes unitários |
 
 ---

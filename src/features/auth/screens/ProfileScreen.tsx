@@ -66,11 +66,17 @@ export function ProfileScreen() {
       Alert.alert('Erro', 'O nome é obrigatório.');
       return;
     }
-    await updateProfile({ 
-      name, 
-      phone: normalizeToDigits(phone), 
-      cpf: normalizeToDigits(cpf) 
+    const result = await updateProfile({
+      name,
+      phone: normalizeToDigits(phone),
+      cpf: normalizeToDigits(cpf)
     });
+
+    if (!result.success) {
+      Alert.alert('Erro', result.error || 'Não foi possível atualizar o perfil.');
+      return;
+    }
+
     Alert.alert('Sucesso', 'Perfil atualizado!');
     setIsEditing(false);
   };

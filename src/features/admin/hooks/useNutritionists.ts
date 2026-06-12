@@ -26,7 +26,7 @@ export const useNutritionists = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchNutritionists = async () => {
+  const fetchNutritionists = async (cancelled?: () => boolean) => {
     if (!user?.clinicId) {
       setIsLoading(false);
       return;
@@ -46,6 +46,7 @@ export const useNutritionists = () => {
         .eq('clinic_id', user.clinicId);
 
       if (fetchErr) throw fetchErr;
+      if (cancelled?.()) return;
 
       const formatted = (data || []).map((row: ProfileRow) => {
         const detail = firstDetail(row.details);
@@ -60,18 +61,20 @@ export const useNutritionists = () => {
 
       setNutritionists(formatted);
     } catch (err: unknown) {
+      if (cancelled?.()) return;
       setError(err instanceof Error ? err.message : 'Erro ao buscar nutricionistas');
     } finally {
-      setIsLoading(false);
+      if (!cancelled?.()) setIsLoading(false);
     }
   };
 
   useEffect(() => {
     let cancelled = false;
+    const isCancelled = () => cancelled;
     let channelProfiles: ReturnType<typeof supabase.channel> | null = null;
     let channelDetails: ReturnType<typeof supabase.channel> | null = null;
 
-    fetchNutritionists();
+    void fetchNutritionists(isCancelled);
 
     if (user?.clinicId) {
       // Monitora novos nutricionistas na clínica
@@ -80,7 +83,7 @@ export const useNutritionists = () => {
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'profiles', filter: `clinic_id=eq.${user.clinicId}` },
-          () => { if (!cancelled) void fetchNutritionists(); }
+          () => { if (!cancelled) void fetchNutritionists(isCancelled); }
         )
         .subscribe();
 
@@ -89,8 +92,8 @@ export const useNutritionists = () => {
         .channel(uniqueChannelName('admin-nutritionists-details', user.clinicId))
         .on(
           'postgres_changes',
-          { event: '*', schema: 'public', table: 'nutritionist_details' },
-          () => { if (!cancelled) void fetchNutritionists(); }
+          { event: '*', schema: 'public', table: 'nutritionist_details', filter: `clinic_id=eq.${user.clinicId}` },
+          () => { if (!cancelled) void fetchNutritionists(isCancelled); }
         )
         .subscribe();
     }

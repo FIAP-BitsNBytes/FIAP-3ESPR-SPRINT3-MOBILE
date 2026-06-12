@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FlatList, View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, ActivityIndicator } from 'react-native';
+import { FlatList, View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CheckCircle, XCircle, Clock, Plus, UserPlus, Stethoscope, ChevronRight } from 'lucide-react-native';
 import { useRouter, type Href } from 'expo-router';
@@ -8,6 +8,7 @@ import type { NutritionistRequest } from '../domain/admin';
 import { useNutritionists } from '../hooks/useNutritionists';
 import { useInviteUser } from '@/shared/hooks/useInviteUser';
 import { InlineStatus } from '@/shared/components/ui/InlineStatus';
+import { AppModal } from '@/shared/components/ui/AppModal';
 
 const STATUS_CONFIG = {
   APPROVED: { color: colors.success, Icon: CheckCircle, label: 'Aprovado' },
@@ -49,6 +50,10 @@ export function AdminNutritionistsScreen() {
   const openInviteModal = () => {
     setFeedback(null);
     setIsModalVisible(true);
+  };
+
+  const closeInviteModal = () => {
+    setIsModalVisible(false);
   };
 
   const handleInvite = async () => {
@@ -132,67 +137,63 @@ export function AdminNutritionistsScreen() {
         onPress={openInviteModal}
         activeOpacity={0.8}
       >
-        <Plus color="white" size={24} />
+        <Plus color={colors.onPrimary} size={24} />
       </TouchableOpacity>
 
-      <Modal visible={isModalVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <UserPlus color={colors.primary} size={24} />
-              <Text style={styles.modalTitle}>Convidar Nutricionista</Text>
-            </View>
-
-            {feedback ? <InlineStatus variant={feedback.type} message={feedback.message} /> : null}
-            
-            <TextInput 
-              style={styles.input} 
-              placeholder="Nome Completo" 
-              placeholderTextColor={colors.muted}
-              value={form.name}
-              onChangeText={text => setForm(f => ({ ...f, name: text }))}
-            />
-            <TextInput 
-              style={styles.input} 
-              placeholder="E-mail" 
-              placeholderTextColor={colors.muted}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              value={form.email}
-              onChangeText={text => setForm(f => ({ ...f, email: text }))}
-            />
-            <TextInput 
-              style={styles.input} 
-              placeholder="CRM ou CRN" 
-              placeholderTextColor={colors.muted}
-              value={form.crm}
-              onChangeText={text => setForm(f => ({ ...f, crm: text }))}
-            />
-
-            <View style={styles.modalButtons}>
-              <TouchableOpacity 
-                style={[styles.button, styles.cancelButton]} 
-                onPress={() => setIsModalVisible(false)}
-                disabled={isInviting}
-              >
-                <Text style={styles.cancelButtonText}>Cancelar</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.button, styles.inviteButton]} 
-                onPress={handleInvite}
-                disabled={isInviting}
-              >
-                {isInviting ? (
-                  <ActivityIndicator color="white" size="small" />
-                ) : (
-                  <Text style={styles.inviteButtonText}>Enviar Convite</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
+      <AppModal visible={isModalVisible} onClose={closeInviteModal} variant="center" avoidKeyboard>
+        <View style={styles.modalHeader}>
+          <UserPlus color={colors.primary} size={24} />
+          <Text style={styles.modalTitle}>Convidar Nutricionista</Text>
         </View>
-      </Modal>
+
+        {feedback ? <InlineStatus variant={feedback.type} message={feedback.message} /> : null}
+
+        <TextInput
+          style={styles.input}
+          placeholder="Nome Completo"
+          placeholderTextColor={colors.muted}
+          value={form.name}
+          onChangeText={text => setForm(f => ({ ...f, name: text }))}
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="E-mail"
+          placeholderTextColor={colors.muted}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          value={form.email}
+          onChangeText={text => setForm(f => ({ ...f, email: text }))}
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="CRM ou CRN"
+          placeholderTextColor={colors.muted}
+          value={form.crm}
+          onChangeText={text => setForm(f => ({ ...f, crm: text }))}
+        />
+
+        <View style={styles.modalButtons}>
+          <TouchableOpacity
+            style={[styles.button, styles.cancelButton]}
+            onPress={closeInviteModal}
+            disabled={isInviting}
+          >
+            <Text style={styles.cancelButtonText}>Cancelar</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.button, styles.inviteButton]}
+            onPress={handleInvite}
+            disabled={isInviting}
+          >
+            {isInviting ? (
+              <ActivityIndicator color={colors.onPrimary} size="small" />
+            ) : (
+              <Text style={styles.inviteButtonText}>Enviar Convite</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </AppModal>
     </SafeAreaView>
   );
 }
@@ -236,18 +237,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     ...shadow.primary,
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    padding: spacing.lg,
-  },
-  modalContent: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.xl,
-    padding: spacing.xl,
-    gap: spacing.md,
-  },
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -274,7 +263,7 @@ const styles = StyleSheet.create({
   cancelButton: { backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border },
   inviteButton: { backgroundColor: colors.primary },
   cancelButtonText: { color: colors.text, fontWeight: '600' },
-  inviteButtonText: { color: 'white', fontWeight: '600' },
+  inviteButtonText: { color: colors.onPrimary, fontWeight: '600' },
   empty: { paddingTop: spacing.xxl, alignItems: 'center', gap: spacing.md },
   emptyTitle: { color: colors.text, fontSize: fontSize.lg, fontWeight: '700' },
   emptySubtitle: { color: colors.muted, fontSize: fontSize.sm, textAlign: 'center' },

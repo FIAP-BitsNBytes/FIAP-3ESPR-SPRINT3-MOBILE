@@ -1,9 +1,8 @@
-import { useState, useEffect } from 'react';
 import { supabase } from '@/shared/infrastructure/supabase/client';
 import { AppointmentStatus } from '@/shared/infrastructure/supabase/database.types';
 import { UserRole } from '@/features/auth/domain/auth';
 import { useAuthContext } from '@/features/auth/context/AuthContext';
-import { uniqueChannelName } from '@/shared/utils/realtime';
+import { useSupabaseQuery } from '@/shared/hooks/useSupabaseQuery';
 
 export interface AppointmentItem {
   id: string;
@@ -20,91 +19,81 @@ interface UseAppointmentsState {
   error: string | null;
 }
 
+/** Perfil relacionado (paciente/nutricionista) retornado pelo join. */
+interface RelatedProfileRow {
+  name: string;
+}
+
+/** Linha retornada pela consulta de `appointments` com joins de `profiles`. */
+interface AppointmentRow {
+  id: string;
+  scheduled_at: string;
+  status: AppointmentStatus;
+  type: string | null;
+  patient: RelatedProfileRow | null;
+  nutritionist: RelatedProfileRow | null;
+}
+
+const EMPTY_APPOINTMENTS: AppointmentItem[] = [];
+
+const fetchAppointments = async (userId: string, activeRole: UserRole): Promise<AppointmentItem[]> => {
+  let query = supabase
+    .from('appointments')
+    .select(`
+      id,
+      scheduled_at,
+      status,
+      type,
+      patient:profiles!appointments_patient_id_fkey(name),
+      nutritionist:profiles!appointments_nutritionist_id_fkey(name)
+    `);
+
+  if (activeRole === 'PATIENT') {
+    query = query.eq('patient_id', userId);
+  } else if (activeRole === 'NUTRITIONIST') {
+    query = query.eq('nutritionist_id', userId);
+  }
+
+  const { data, error } = await query.order('scheduled_at', { ascending: true });
+  if (error) throw error;
+
+  const rows = (data ?? []) as AppointmentRow[];
+
+  return rows.map(row => ({
+    id: row.id,
+    scheduledAt: row.scheduled_at,
+    status: row.status,
+    type: row.type,
+    patientName: activeRole !== 'PATIENT' ? (row.patient?.name ?? undefined) : undefined,
+    nutritionistName: activeRole !== 'NUTRITIONIST' ? (row.nutritionist?.name ?? undefined) : undefined,
+  }));
+};
+
 export const useAppointments = (role?: UserRole): UseAppointmentsState => {
   const { user } = useAuthContext();
   const activeRole = role ?? user?.role;
-  const [state, setState] = useState<UseAppointmentsState>({
-    appointments: [],
-    isLoading: true,
-    error: null,
+  const userId = user?.id;
+
+  const filter = activeRole === 'PATIENT'
+    ? `patient_id=eq.${userId}`
+    : `nutritionist_id=eq.${userId}`;
+
+  const { data, isLoading, error } = useSupabaseQuery<AppointmentItem[]>({
+    fetcher: () => {
+      if (!userId || !activeRole) return Promise.resolve(EMPTY_APPOINTMENTS);
+      return fetchAppointments(userId, activeRole);
+    },
+    enabled: Boolean(userId && activeRole),
+    channelPrefix: `appointments-${userId ?? 'anon'}`,
+    realtime: userId && activeRole
+      ? [{ table: 'appointments', filter }]
+      : undefined,
+    deps: [activeRole, userId],
   });
 
-  useEffect(() => {
-    let cancelled = false;
-    let channel: ReturnType<typeof supabase.channel> | null = null;
-
-    const fetch = async () => {
-      if (!user?.id || !activeRole) {
-        if (!cancelled) setState({ appointments: [], isLoading: false, error: null });
-        return;
-      }
-
-      let query = supabase
-        .from('appointments')
-        .select(`
-          id,
-          scheduled_at,
-          status,
-          type,
-          patient:profiles!appointments_patient_id_fkey(name),
-          nutritionist:profiles!appointments_nutritionist_id_fkey(name)
-        `);
-
-      if (activeRole === 'PATIENT') {
-        query = query.eq('patient_id', user.id);
-      } else if (activeRole === 'NUTRITIONIST') {
-        query = query.eq('nutritionist_id', user.id);
-      }
-
-      const { data, error } = await query.order('scheduled_at', { ascending: true });
-
-      if (cancelled) return;
-
-      if (error || !data) {
-        setState({ appointments: [], isLoading: false, error: error?.message ?? 'Erro ao carregar agenda' });
-        return;
-      }
-
-      const appointments: AppointmentItem[] = data.map(a => {
-        const patient = a.patient as { name: string } | null;
-        const nutritionist = a.nutritionist as { name: string } | null;
-        return {
-          id: a.id,
-          scheduledAt: a.scheduled_at,
-          status: a.status,
-          type: a.type,
-          patientName: activeRole !== 'PATIENT' ? (patient?.name ?? undefined) : undefined,
-          nutritionistName: activeRole !== 'NUTRITIONIST' ? (nutritionist?.name ?? undefined) : undefined,
-        };
-      });
-
-      setState({ appointments, isLoading: false, error: null });
-    };
-
-    fetch();
-
-    if (user?.id && activeRole) {
-      const filter = activeRole === 'PATIENT' 
-        ? `patient_id=eq.${user.id}` 
-        : `nutritionist_id=eq.${user.id}`;
-
-      channel = supabase
-        .channel(uniqueChannelName('appointments', user.id))
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'appointments', filter },
-          () => { void fetch(); }
-        )
-        .subscribe();
-    }
-
-    return () => { 
-      cancelled = true;
-      if (channel) {
-        void supabase.removeChannel(channel);
-      }
-    };
-  }, [activeRole, user?.id]);
-
-  return state;
+  return {
+    appointments: data ?? EMPTY_APPOINTMENTS,
+    isLoading,
+    error,
+  };
 };

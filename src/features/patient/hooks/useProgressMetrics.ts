@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useAuthContext } from '@/features/auth/context/AuthContext';
+import { useSupabaseQuery } from '@/shared/hooks/useSupabaseQuery';
 import { supabase } from '@/shared/infrastructure/supabase/client';
 import { LogType } from '@/shared/infrastructure/supabase/database.types';
-import { useAuthContext } from '@/features/auth/context/AuthContext';
+import type { MeasurementUnit } from '@/features/nutrition';
 import { toDateKey } from '@/shared/utils/date';
-import { uniqueChannelName } from '@/shared/utils/realtime';
 
 export interface DailyProgressItem {
   dateKey: string;
@@ -20,52 +20,59 @@ interface ProgressMetricsState {
   error: string | null;
 }
 
+/** Linha bruta retornada pela consulta a `meal_logs`, tipada na borda. */
 interface ProgressLogRow {
   calories: number | null;
   quantity: number;
-  unit: string;
+  unit: MeasurementUnit;
   category: LogType;
   logged_at: string;
 }
 
-const buildLastSevenDays = () => {
+interface ProgressDay {
+  dateKey: string;
+  dayLabel: string;
+}
+
+const DAYS_IN_WINDOW = 7;
+
+/** Computa a janela dos últimos 7 dias (incluindo hoje), recalculada a cada fetch. */
+const buildLastSevenDays = (): ProgressDay[] => {
   const today = new Date();
-  return Array.from({ length: 7 }, (_, index) => {
+  return Array.from({ length: DAYS_IN_WINDOW }, (_, index) => {
     const date = new Date(today);
-    date.setDate(today.getDate() - (6 - index));
+    date.setDate(today.getDate() - (DAYS_IN_WINDOW - 1 - index));
     return {
-      date,
       dateKey: toDateKey(date),
       dayLabel: date.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', ''),
     };
   });
 };
 
+const emptyDays = (days: ProgressDay[]): DailyProgressItem[] =>
+  days.map(day => ({
+    dateKey: day.dateKey,
+    dayLabel: day.dayLabel,
+    calories: 0,
+    waterMl: 0,
+    meals: 0,
+    exercises: 0,
+  }));
+
 export const useProgressMetrics = (patientId?: string | null): ProgressMetricsState => {
   const { user } = useAuthContext();
-  const baseDays = useMemo(buildLastSevenDays, []);
-  const [state, setState] = useState<ProgressMetricsState>({
-    days: baseDays.map(day => ({
-      dateKey: day.dateKey,
-      dayLabel: day.dayLabel,
-      calories: 0,
-      waterMl: 0,
-      meals: 0,
-      exercises: 0,
-    })),
-    isLoading: true,
-    error: null,
-  });
+  const targetPatientId = patientId === null ? null : (patientId ?? user?.id ?? null);
 
-  useEffect(() => {
-    let cancelled = false;
-    let channel: ReturnType<typeof supabase.channel> | null = null;
+  const { data, isLoading, error } = useSupabaseQuery<DailyProgressItem[]>({
+    fetcher: async () => {
+      // Recalculada a cada execução — garante que a janela de 7 dias avance.
+      const days = buildLastSevenDays();
+      if (!targetPatientId) return emptyDays(days);
 
-    const fetch = async (targetPatientId: string) => {
-      const start = `${baseDays[0].dateKey}T00:00:00`;
-      const end = `${baseDays[baseDays.length - 1].dateKey}T23:59:59`;
+      const start = `${days[0].dateKey}T00:00:00`;
+      const end = `${days[days.length - 1].dateKey}T23:59:59`;
 
-      const { data, error } = await supabase
+      const { data, error: err } = await supabase
         .from('meal_logs')
         .select('calories, quantity, unit, category, logged_at')
         .eq('patient_id', targetPatientId)
@@ -74,18 +81,9 @@ export const useProgressMetrics = (patientId?: string | null): ProgressMetricsSt
         .is('deleted_at', null)
         .order('logged_at', { ascending: true });
 
-      if (cancelled) return;
+      if (err) throw err;
 
-      if (error || !data) {
-        setState(prev => ({
-          ...prev,
-          isLoading: false,
-          error: error?.message ?? 'Erro ao carregar evolução',
-        }));
-        return;
-      }
-
-      const totals = baseDays.reduce<Record<string, DailyProgressItem>>((acc, day) => {
+      const totals = days.reduce<Record<string, DailyProgressItem>>((acc, day) => {
         acc[day.dateKey] = {
           dateKey: day.dateKey,
           dayLabel: day.dayLabel,
@@ -97,7 +95,8 @@ export const useProgressMetrics = (patientId?: string | null): ProgressMetricsSt
         return acc;
       }, {});
 
-      (data as ProgressLogRow[]).forEach(log => {
+      const rows = (data ?? []) as ProgressLogRow[];
+      rows.forEach(log => {
         const key = toDateKey(new Date(log.logged_at));
         const day = totals[key];
         if (!day) return;
@@ -116,37 +115,19 @@ export const useProgressMetrics = (patientId?: string | null): ProgressMetricsSt
         }
       });
 
-      setState({
-        days: baseDays.map(day => totals[day.dateKey]),
-        isLoading: false,
-        error: null,
-      });
-    };
+      return days.map(day => totals[day.dateKey]);
+    },
+    enabled: true,
+    channelPrefix: 'progress-metrics',
+    realtime: targetPatientId
+      ? [{ table: 'meal_logs', filter: `patient_id=eq.${targetPatientId}` }]
+      : undefined,
+    deps: [targetPatientId],
+  });
 
-    const targetPatientId = patientId === null ? null : (patientId ?? user?.id);
-    if (!targetPatientId) {
-      if (!cancelled) setState(prev => ({ ...prev, isLoading: false }));
-      return;
-    }
-
-    fetch(targetPatientId);
-
-    channel = supabase
-      .channel(uniqueChannelName('progress-metrics', targetPatientId))
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'meal_logs', filter: `patient_id=eq.${targetPatientId}` },
-        () => { void fetch(targetPatientId); }
-      )
-      .subscribe();
-
-    return () => {
-      cancelled = true;
-      if (channel) {
-        void supabase.removeChannel(channel);
-      }
-    };
-  }, [baseDays, patientId, user?.id]);
-
-  return state;
+  return {
+    days: data ?? emptyDays(buildLastSevenDays()),
+    isLoading,
+    error,
+  };
 };

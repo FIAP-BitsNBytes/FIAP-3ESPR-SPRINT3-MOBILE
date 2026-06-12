@@ -1,19 +1,16 @@
-import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/shared/infrastructure/supabase/client';
 import { useAuthContext } from '@/features/auth/context/AuthContext';
-import { uniqueChannelName } from '@/shared/utils/realtime';
+import { useSupabaseQuery } from '@/shared/hooks/useSupabaseQuery';
+import { supabase } from '@/shared/infrastructure/supabase/client';
+import { todayIso } from '@/shared/utils/date';
+import type { MealTimeType, MeasurementUnit } from '@/features/nutrition';
 
-export type MealTimeType =
-  | 'BREAKFAST'
-  | 'MORNING_SNACK'
-  | 'LUNCH'
-  | 'AFTERNOON_SNACK'
-  | 'DINNER'
-  | 'EVENING_SNACK'
-  | 'ANYTIME';
+export type { MealTimeType, MeasurementUnit } from '@/features/nutrition';
 
-export type MeasurementUnit = 'GRAMS' | 'MILLILITERS' | 'UNITS' | 'PORTIONS' | 'CALORIES';
-
+/**
+ * Shape retornado por `get_today_plan` — subconjunto do `PlanItem` canônico
+ * de `@/features/nutrition` (sem `planId`/`planTitle`/`adherencePct`, que a
+ * RPC não devolve).
+ */
 export interface PlanItem {
   itemId: string;
   mealTime: MealTimeType;
@@ -39,76 +36,61 @@ interface DailyPlanState {
   refresh: () => void;
 }
 
+/** Linha bruta retornada por `get_today_plan`, tipada na borda da RPC. */
+interface GetTodayPlanRow {
+  item_id: string;
+  meal_time: MealTimeType;
+  food_name: string;
+  prescribed_qty: number;
+  prescribed_unit: MeasurementUnit;
+  prescribed_cal: number | null;
+  purpose: string | null;
+  sequence: number;
+  log_id: string | null;
+  actual_qty: number | null;
+  actual_unit: MeasurementUnit | null;
+  actual_cal: number | null;
+  logged_at: string | null;
+  xp_earned: number | null;
+  log_notes: string | null;
+}
+
+const mapRow = (row: GetTodayPlanRow): PlanItem => ({
+  itemId:         row.item_id,
+  mealTime:       row.meal_time,
+  foodName:       row.food_name,
+  prescribedQty:  row.prescribed_qty,
+  prescribedUnit: row.prescribed_unit,
+  prescribedCal:  row.prescribed_cal,
+  purpose:        row.purpose,
+  sequence:       row.sequence,
+  logId:          row.log_id,
+  actualQty:      row.actual_qty,
+  actualUnit:     row.actual_unit,
+  actualCal:      row.actual_cal,
+  loggedAt:       row.logged_at,
+  xpEarned:       row.xp_earned ?? 0,
+  logNotes:       row.log_notes,
+});
+
 export function useDailyPlan(): DailyPlanState {
   const { user } = useAuthContext();
-  const [planItems, setPlanItems] = useState<PlanItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [tick, setTick] = useState(0);
+  const userId = user?.id;
 
-  const refresh = useCallback(() => setTick(t => t + 1), []);
+  const { data, isLoading, error, refresh } = useSupabaseQuery<PlanItem[]>({
+    fetcher: async () => {
+      const { data, error: err } = await supabase.rpc('get_today_plan', { p_date: todayIso() });
+      if (err) throw err;
+      const rows = (data ?? []) as GetTodayPlanRow[];
+      return rows.map(mapRow);
+    },
+    enabled: Boolean(userId),
+    channelPrefix: 'daily-plan',
+    realtime: userId
+      ? [{ table: 'meal_logs', filter: `patient_id=eq.${userId}` }]
+      : undefined,
+    deps: [userId],
+  });
 
-  useEffect(() => {
-    if (!user?.id) {
-      setIsLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    let channel: ReturnType<typeof supabase.channel> | null = null;
-
-    const fetchPlan = async () => {
-      setIsLoading(true);
-      const { data, error: err } = await supabase.rpc('get_today_plan', {});
-
-      if (cancelled) return;
-
-      if (err) {
-        setError(err.message);
-        setIsLoading(false);
-        return;
-      }
-
-      const rows = (data ?? []) as Record<string, unknown>[];
-      const items: PlanItem[] = rows.map(row => ({
-        itemId:         row.item_id as string,
-        mealTime:       row.meal_time as MealTimeType,
-        foodName:       row.food_name as string,
-        prescribedQty:  row.prescribed_qty as number,
-        prescribedUnit: row.prescribed_unit as MeasurementUnit,
-        prescribedCal:  row.prescribed_cal as number | null,
-        purpose:        row.purpose as string | null,
-        sequence:       row.sequence as number,
-        logId:          row.log_id as string | null,
-        actualQty:      row.actual_qty as number | null,
-        actualUnit:     row.actual_unit as MeasurementUnit | null,
-        actualCal:      row.actual_cal as number | null,
-        loggedAt:       row.logged_at as string | null,
-        xpEarned:       (row.xp_earned as number) ?? 0,
-        logNotes:       row.log_notes as string | null,
-      }));
-
-      setPlanItems(items);
-      setError(null);
-      setIsLoading(false);
-    };
-
-    fetchPlan();
-
-    channel = supabase
-      .channel(uniqueChannelName('daily-plan', user.id))
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'meal_logs', filter: `patient_id=eq.${user.id}` },
-        () => { void fetchPlan(); }
-      )
-      .subscribe();
-
-    return () => {
-      cancelled = true;
-      if (channel) void supabase.removeChannel(channel);
-    };
-  }, [user?.id, tick]);
-
-  return { planItems, isLoading, error, refresh };
+  return { planItems: data ?? [], isLoading, error, refresh };
 }

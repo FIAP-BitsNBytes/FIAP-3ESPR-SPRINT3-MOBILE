@@ -1,3 +1,5 @@
+import { palette } from '@/shared/theme';
+
 export type MealTimeType =
   | 'BREAKFAST'
   | 'MORNING_SNACK'
@@ -92,13 +94,13 @@ export const MEAL_TIME_ORDER: MealTimeType[] = [
 ];
 
 export const MEAL_TIME_COLORS: Record<MealTimeType, string> = {
-  BREAKFAST:       '#F59E0B',
-  MORNING_SNACK:   '#10B981',
-  LUNCH:           '#3B82F6',
-  AFTERNOON_SNACK: '#8B5CF6',
-  DINNER:          '#EC4899',
-  EVENING_SNACK:   '#6366F1',
-  ANYTIME:         '#6B7280',
+  BREAKFAST:       palette.amber,
+  MORNING_SNACK:   palette.emerald,
+  LUNCH:           palette.blue,
+  AFTERNOON_SNACK: palette.violet,
+  DINNER:          palette.pink,
+  EVENING_SNACK:   palette.indigo,
+  ANYTIME:         palette.slate,
 };
 
 export const UNIT_LABELS: Record<MeasurementUnit, string> = {

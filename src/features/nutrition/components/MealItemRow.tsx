@@ -31,12 +31,14 @@ export function MealItemRow({ item, isAlt, onEdit, onDelete, onLog }: MealItemRo
             <TouchableOpacity
               style={[styles.actionBtn, styles.actionDanger]}
               onPress={() => { setConfirmDelete(false); onDelete?.(item.itemId); }}
+              hitSlop={{ top: 9, bottom: 9, left: 9, right: 9 }}
             >
               <Trash2 size={13} color={colors.danger} />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.actionBtn}
               onPress={() => setConfirmDelete(false)}
+              hitSlop={{ top: 9, bottom: 9, left: 9, right: 9 }}
             >
               <X size={13} color={colors.muted} />
             </TouchableOpacity>
@@ -58,12 +60,17 @@ export function MealItemRow({ item, isAlt, onEdit, onDelete, onLog }: MealItemRo
           {item.prescribedCal ?? '—'}
         </Text>
         <View style={styles.actions}>
-          <TouchableOpacity style={styles.actionBtn} onPress={() => onEdit?.(item)}>
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={() => onEdit?.(item)}
+            hitSlop={{ top: 9, bottom: 9, left: 9, right: 9 }}
+          >
             <Pencil size={13} color={colors.primary} />
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.actionBtn, styles.actionDanger]}
             onPress={() => setConfirmDelete(true)}
+            hitSlop={{ top: 9, bottom: 9, left: 9, right: 9 }}
           >
             <Trash2 size={13} color={colors.danger} />
           </TouchableOpacity>
@@ -108,7 +115,7 @@ export function MealItemRow({ item, isAlt, onEdit, onDelete, onLog }: MealItemRo
 
 const styles = StyleSheet.create({
   // Confirm-delete state
-  rowConfirm: { backgroundColor: 'rgba(220,38,38,0.06)', justifyContent: 'space-between' },
+  rowConfirm: { backgroundColor: colors.danger + '0F', justifyContent: 'space-between' },
   confirmText: { flex: 1, color: colors.danger, fontSize: fontSize.xs },
   confirmActions: { flexDirection: 'row', gap: 4 },
 
@@ -135,8 +142,8 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.border,
   },
   actionDanger: {
-    backgroundColor: 'rgba(220,38,38,0.08)',
-    borderColor: 'rgba(220,38,38,0.2)',
+    backgroundColor: colors.danger + '15',
+    borderColor: colors.danger + '33',
   },
 
   // Patient card styles
@@ -163,5 +170,5 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     borderRadius: radius.md,
   },
-  logBtnText: { color: 'white', fontSize: fontSize.xs, fontWeight: '700' },
+  logBtnText: { color: colors.onPrimary, fontSize: fontSize.xs, fontWeight: '700' },
 });

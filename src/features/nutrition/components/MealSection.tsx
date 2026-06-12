@@ -3,7 +3,7 @@ import { Plus } from 'lucide-react-native';
 import { colors, fontSize, radius, spacing } from '@/shared/theme';
 import { usePlanPermissions } from '../hooks/usePlanPermissions';
 import { MealItemRow } from './MealItemRow';
-import { MEAL_TIME_LABELS, MEAL_TIME_COLORS, UNIT_LABELS } from '../types';
+import { MEAL_TIME_LABELS, MEAL_TIME_COLORS } from '../types';
 import type { MealTimeType, PlanItem } from '../types';
 
 interface MealSectionProps {

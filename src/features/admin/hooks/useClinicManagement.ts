@@ -55,24 +55,32 @@ export const useClinicManagement = () => {
 
   const updateClinic = async (updates: Partial<Omit<ClinicData, 'id'>>) => {
     if (!state.clinic?.id) return;
-    
+
     setState(prev => ({ ...prev, isSaving: true, error: null }));
 
-    const { error } = await supabase
-      .from('clinics')
-      .update(updates)
-      .eq('id', state.clinic.id);
+    try {
+      const { error } = await supabase
+        .from('clinics')
+        .update(updates)
+        .eq('id', state.clinic.id);
 
-    if (error) {
-      setState(prev => ({ ...prev, isSaving: false, error: error.message }));
-      return;
+      if (error) {
+        setState(prev => ({ ...prev, error: error.message }));
+        return;
+      }
+
+      setState(prev => ({
+        ...prev,
+        clinic: prev.clinic ? { ...prev.clinic, ...updates } : null,
+      }));
+    } catch (err: unknown) {
+      setState(prev => ({
+        ...prev,
+        error: err instanceof Error ? err.message : 'Erro ao salvar dados da clínica',
+      }));
+    } finally {
+      setState(prev => ({ ...prev, isSaving: false }));
     }
-
-    setState(prev => ({
-      ...prev,
-      isSaving: false,
-      clinic: prev.clinic ? { ...prev.clinic, ...updates } : null,
-    }));
   };
 
   useEffect(() => {

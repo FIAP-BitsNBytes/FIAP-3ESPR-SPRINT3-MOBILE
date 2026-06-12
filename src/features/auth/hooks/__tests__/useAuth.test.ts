@@ -113,4 +113,35 @@ describe('useAuth Stress Tests (Harden Flow)', () => {
     expect(updateInterceptorUserId).toHaveBeenCalledWith(null);
     expect(AsyncStorage.removeItem).toHaveBeenCalled();
   });
+
+  it('deve capturar exceções nao tratadas dentro do listener onAuthStateChange e expor estado de erro', async () => {
+    const { result } = renderHook(() => useAuth());
+    const authChangeCallback = (supabase.auth.onAuthStateChange as jest.Mock).mock.calls[0][0];
+
+    // Deixa o init() inicial (getSession -> updateSession(null)) assentar normalmente
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    // Simula falha no fetch de perfil (RPC) dentro do listener
+    (supabase.from as jest.Mock).mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      single: jest.fn().mockResolvedValue({ data: null, error: { message: 'Profile RPC failed' } }),
+    });
+
+    // Faz a limpeza (catch interno do updateSession) lançar tambem,
+    // forcando o erro a escapar para o try/catch do listener
+    (AsyncStorage.removeItem as jest.Mock).mockRejectedValueOnce(new Error('Storage unavailable'));
+
+    // Nao deve lancar (sem unhandled rejection) e deve resolver normalmente
+    await act(async () => {
+      await expect(
+        authChangeCallback('SIGNED_IN', { user: { id: 'u1', email: 'test@test.com' } })
+      ).resolves.toBeUndefined();
+    });
+
+    expect(result.current.error).toBe('Storage unavailable');
+    expect(result.current.isLoading).toBe(false);
+  });
 });

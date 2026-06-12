@@ -18,6 +18,10 @@ const STORAGE_KEY = `sb-${PROJECT_REF}-auth-token`;
 // Cache em memória para evitar leituras constantes ao disco (AsyncStorage)
 let cachedUserId: string | null = null;
 
+// Leitura pendente compartilhada: garante que requisições concorrentes
+// aguardem a MESMA leitura do AsyncStorage em vez de disparar várias.
+let pendingRead: Promise<string | null> | null = null;
+
 /**
  * Atualiza o ID do usuário no cache do interceptor.
  * Deve ser chamado no login/logout ou mudança de sessão.
@@ -26,23 +30,63 @@ export const updateInterceptorUserId = (id: string | null) => {
   cachedUserId = id;
 };
 
+/**
+ * Type guard para validar a estrutura da sessão persistida no storage.
+ * Faz narrowing seguro de `unknown` sem casts.
+ */
+function isStoredSession(value: unknown): value is { user: { id: string } } {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  if (!('user' in value)) {
+    return false;
+  }
+  const { user } = value;
+  if (typeof user !== 'object' || user === null) {
+    return false;
+  }
+  if (!('id' in user)) {
+    return false;
+  }
+  return typeof user.id === 'string';
+}
+
+/**
+ * Lê o ID do usuário persistido no AsyncStorage.
+ * Nunca lança: falhas de leitura ou JSON malformado retornam null.
+ */
+async function readStoredUserId(): Promise<string | null> {
+  try {
+    const sessionData = await AsyncStorage.getItem(STORAGE_KEY);
+    if (!sessionData) {
+      return null;
+    }
+    const parsed: unknown = JSON.parse(sessionData);
+    return isStoredSession(parsed) ? parsed.user.id : null;
+  } catch {
+    // Ignora erro na leitura/parse do storage
+    return null;
+  }
+}
+
 export const supabaseFetch: typeof fetch = async (url, options) => {
   const resource = url.toString();
-  
+
   // --- INTERCEPTOR DE REQUEST ---
   // Inicializa os headers de forma segura, suportando objeto literal ou instância de Headers
   const headers = new Headers(options?.headers);
-  
-  // Se não houver cache, tenta ler uma vez do storage (fallback)
+
+  // Se não houver cache, aguarda a leitura compartilhada do storage (fallback).
+  // O primeiro caller cria a Promise; os concorrentes aguardam a MESMA leitura.
   if (!cachedUserId && Platform.OS !== 'web') {
-    try {
-      const sessionData = await AsyncStorage.getItem(STORAGE_KEY);
-      if (sessionData) {
-        const session = JSON.parse(sessionData);
-        cachedUserId = session?.user?.id || null;
-      }
-    } catch {
-      // Ignora erro na leitura do storage
+    if (!pendingRead) {
+      pendingRead = readStoredUserId().finally(() => {
+        pendingRead = null;
+      });
+    }
+    const storedId = await pendingRead;
+    if (!cachedUserId && storedId) {
+      cachedUserId = storedId;
     }
   }
 

@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/shared/infrastructure/supabase/client';
 import { useAuthContext } from '@/features/auth/context/AuthContext';
 import { todayIso } from '@/shared/utils/date';
 import { uniqueChannelName } from '@/shared/utils/realtime';
+
+const REALTIME_DEBOUNCE_MS = 300;
 
 interface DashboardStats {
   patientCount: number;
@@ -13,20 +15,29 @@ interface DashboardStats {
   error: string | null;
 }
 
+interface DashboardCounts {
+  patientCount: number;
+  nutritionistCount: number;
+  todayAppointments: number;
+  pendingNutritionists: number;
+}
+
+const INITIAL_COUNTS: DashboardCounts = {
+  patientCount: 0,
+  nutritionistCount: 0,
+  todayAppointments: 0,
+  pendingNutritionists: 0,
+};
+
 export const useDashboardStats = (): DashboardStats => {
   const { user } = useAuthContext();
-  const [stats, setStats] = useState<DashboardStats>({
-    patientCount: 0,
-    nutritionistCount: 0,
-    todayAppointments: 0,
-    pendingNutritionists: 0,
-    isLoading: true,
-    error: null,
-  });
+  const [counts, setCounts] = useState<DashboardCounts>(INITIAL_COUNTS);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetch = async () => {
     if (!user?.clinicId) {
-      setStats(prev => ({ ...prev, isLoading: false }));
+      setIsLoading(false);
       return;
     }
 
@@ -44,44 +55,66 @@ export const useDashboardStats = (): DashboardStats => {
       supabase.from('nutritionist_details').select('id', { count: 'exact', head: true }).eq('status', 'PENDING'),
     ]);
 
-    const error = patients.error ?? nutritionists.error ?? todayAppts.error ?? pending.error;
-    if (error) {
-      setStats(prev => ({ ...prev, isLoading: false, error: error.message }));
+    const fetchError = patients.error ?? nutritionists.error ?? todayAppts.error ?? pending.error;
+    if (fetchError) {
+      setIsLoading(false);
+      setError(fetchError.message);
       return;
     }
 
-    setStats({
+    setCounts({
       patientCount: patients.count ?? 0,
       nutritionistCount: nutritionists.count ?? 0,
       todayAppointments: todayAppts.count ?? 0,
       pendingNutritionists: pending.count ?? 0,
-      isLoading: false,
-      error: null,
     });
+    setIsLoading(false);
+    setError(null);
   };
 
   useEffect(() => {
     let cancelled = false;
     let channel: ReturnType<typeof supabase.channel> | null = null;
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-    fetch();
+    const scheduleRefetch = () => {
+      if (cancelled) return;
+      if (debounceTimer !== null) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        debounceTimer = null;
+        if (!cancelled) void fetch();
+      }, REALTIME_DEBOUNCE_MS);
+    };
+
+    void fetch();
 
     if (user?.clinicId) {
       channel = supabase
         .channel(uniqueChannelName('admin-dashboard', user.clinicId))
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => { if (!cancelled) void fetch(); })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, () => { if (!cancelled) void fetch(); })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'nutritionist_details' }, () => { if (!cancelled) void fetch(); })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, scheduleRefetch)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, scheduleRefetch)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'nutritionist_details' }, scheduleRefetch)
         .subscribe();
     }
 
     return () => {
       cancelled = true;
+      if (debounceTimer !== null) {
+        clearTimeout(debounceTimer);
+        debounceTimer = null;
+      }
       if (channel) {
         void supabase.removeChannel(channel);
       }
     };
   }, [user?.clinicId]);
 
-  return stats;
+  return useMemo<DashboardStats>(
+    () => ({
+      ...counts,
+      isLoading,
+      error,
+    }),
+    [counts, isLoading, error],
+  );
 };

@@ -1,5 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { supabase } from '@/shared/infrastructure/supabase/client';
+import { useSupabaseQuery } from '@/shared/hooks/useSupabaseQuery';
+import { todayIso } from '@/shared/utils/date';
 import type { MealTimeType, MeasurementUnit } from '@/features/patient/hooks/useDailyPlan';
 
 export interface NutritionistPlanItem {
@@ -58,107 +60,127 @@ interface UseMealPlanReturn {
   deleteItem: (itemId: string) => Promise<{ success: true } | { success: false; error: string }>;
 }
 
+/** Linha retornada por `get_patient_plan_summary` (RPC). */
+interface PatientPlanSummaryRow {
+  plan_id: string;
+  plan_title: string;
+  item_id: string;
+  meal_time: MealTimeType;
+  food_name: string;
+  prescribed_qty: number;
+  prescribed_unit: MeasurementUnit;
+  prescribed_cal: number | null;
+  purpose: string | null;
+  sequence: number;
+  log_id: string | null;
+  actual_qty: number | null;
+  actual_unit: MeasurementUnit | null;
+  actual_cal: number | null;
+  logged_at: string | null;
+  xp_earned: number | null;
+  adherence_pct: number | null;
+}
+
+/** Metadados do plano (tabela `meal_plans`). */
+interface MealPlanMeta {
+  startDate: string | null;
+  endDate: string | null;
+  notes: string | null;
+}
+
+interface MealPlanSummaryData {
+  items: NutritionistPlanItem[];
+  planId: string | null;
+  planTitle: string | null;
+  plan: MealPlanMeta;
+}
+
+const EMPTY_PLAN_META: MealPlanMeta = { startDate: null, endDate: null, notes: null };
+const EMPTY_SUMMARY: MealPlanSummaryData = { items: [], planId: null, planTitle: null, plan: EMPTY_PLAN_META };
+
+const toNutritionistPlanItem = (row: PatientPlanSummaryRow): NutritionistPlanItem => ({
+  planId: row.plan_id,
+  planTitle: row.plan_title,
+  itemId: row.item_id,
+  mealTime: row.meal_time,
+  foodName: row.food_name,
+  prescribedQty: row.prescribed_qty,
+  prescribedUnit: row.prescribed_unit,
+  prescribedCal: row.prescribed_cal,
+  purpose: row.purpose,
+  sequence: row.sequence,
+  logId: row.log_id,
+  actualQty: row.actual_qty,
+  actualUnit: row.actual_unit,
+  actualCal: row.actual_cal,
+  loggedAt: row.logged_at,
+  xpEarned: row.xp_earned ?? 0,
+  adherencePct: row.adherence_pct ?? 0,
+});
+
+const fetchMealPlanSummary = async (patientId: string, date: string): Promise<MealPlanSummaryData> => {
+  const { data, error } = await supabase.rpc('get_patient_plan_summary', {
+    p_patient_id: patientId,
+    p_date: date,
+  });
+  if (error) throw error;
+
+  const rows = (data ?? []) as PatientPlanSummaryRow[];
+
+  if (rows.length === 0) {
+    return EMPTY_SUMMARY;
+  }
+
+  const items = rows.map(toNutritionistPlanItem);
+  const planId = items[0].planId;
+  const planTitle = items[0].planTitle;
+
+  const { data: planDetails, error: planError } = await supabase
+    .from('meal_plans')
+    .select('start_date, end_date, notes')
+    .eq('id', planId)
+    .single();
+  if (planError) throw planError;
+
+  return {
+    items,
+    planId,
+    planTitle,
+    plan: {
+      startDate: planDetails?.start_date ?? null,
+      endDate: planDetails?.end_date ?? null,
+      notes: planDetails?.notes ?? null,
+    },
+  };
+};
+
 export function useMealPlan(patientId: string | null, date?: string): UseMealPlanReturn {
-  const [items, setItems] = useState<NutritionistPlanItem[]>([]);
-  const [planId, setPlanId] = useState<string | null>(null);
-  const [planTitle, setPlanTitle] = useState<string | null>(null);
-  const [planStartDate, setPlanStartDate] = useState<string | null>(null);
-  const [planEndDate, setPlanEndDate] = useState<string | null>(null);
-  const [planNotes, setPlanNotes] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [tick, setTick] = useState(0);
+  const today = date ?? todayIso();
 
-  const refresh = useCallback(() => setTick(t => t + 1), []);
+  const { data, isLoading, error, refresh } = useSupabaseQuery<MealPlanSummaryData>({
+    fetcher: async () => {
+      if (!patientId) return EMPTY_SUMMARY;
+      return fetchMealPlanSummary(patientId, today);
+    },
+    enabled: Boolean(patientId),
+    channelPrefix: 'meal-plan-editor',
+    realtime: patientId
+      ? [
+          { table: 'meal_plan_items' },
+          { table: 'meal_plans' },
+        ]
+      : undefined,
+    deps: [patientId, today],
+  });
 
-  useEffect(() => {
-    if (!patientId) {
-      setItems([]);
-      setPlanId(null);
-      setPlanTitle(null);
-      return;
-    }
-
-    let cancelled = false;
-    setIsLoading(true);
-
-    const fetchSummary = async () => {
-      const { data, error: err } = await supabase.rpc('get_patient_plan_summary', {
-        p_patient_id: patientId,
-        p_date:       date ?? new Date().toISOString().slice(0, 10),
-      });
-
-      if (cancelled) return;
-
-      if (err) {
-        setError(err.message);
-        setIsLoading(false);
-        return;
-      }
-
-      const rows = (data ?? []) as Record<string, unknown>[];
-
-      if (rows.length === 0) {
-        setItems([]);
-        setPlanId(null);
-        setPlanTitle(null);
-        setPlanStartDate(null);
-        setPlanEndDate(null);
-        setPlanNotes(null);
-        setIsLoading(false);
-        return;
-      }
-
-      const mapped: NutritionistPlanItem[] = rows.map(row => ({
-        planId:         row.plan_id as string,
-        planTitle:      row.plan_title as string,
-        itemId:         row.item_id as string,
-        mealTime:       row.meal_time as MealTimeType,
-        foodName:       row.food_name as string,
-        prescribedQty:  row.prescribed_qty as number,
-        prescribedUnit: row.prescribed_unit as MeasurementUnit,
-        prescribedCal:  row.prescribed_cal as number | null,
-        purpose:        row.purpose as string | null,
-        sequence:       row.sequence as number,
-        logId:          row.log_id as string | null,
-        actualQty:      row.actual_qty as number | null,
-        actualUnit:     row.actual_unit as MeasurementUnit | null,
-        actualCal:      row.actual_cal as number | null,
-        loggedAt:       row.logged_at as string | null,
-        xpEarned:       (row.xp_earned as number) ?? 0,
-        adherencePct:   (row.adherence_pct as number) ?? 0,
-      }));
-
-      setItems(mapped);
-      setPlanId(mapped[0].planId);
-      setPlanTitle(mapped[0].planTitle);
-
-      const { data: planDetails } = await supabase
-        .from('meal_plans')
-        .select('start_date, end_date, notes')
-        .eq('id', mapped[0].planId)
-        .single();
-
-      if (!cancelled) {
-        setPlanStartDate(planDetails?.start_date ?? null);
-        setPlanEndDate(planDetails?.end_date ?? null);
-        setPlanNotes(planDetails?.notes ?? null);
-      }
-
-      setError(null);
-      setIsLoading(false);
-    };
-
-    fetchSummary();
-    return () => { cancelled = true; };
-  }, [patientId, date, tick]);
+  const summary = data ?? EMPTY_SUMMARY;
 
   const createPlan = async (params: CreatePlanParams) => {
     if (!patientId) return { success: false as const, error: 'Paciente nao selecionado' };
     setIsSubmitting(true);
     try {
-      const { data, error: err } = await supabase.rpc('create_meal_plan', {
+      const { data: newPlanId, error: err } = await supabase.rpc('create_meal_plan', {
         p_patient_id: patientId,
         p_title:      params.title,
         p_start_date: params.startDate,
@@ -166,8 +188,9 @@ export function useMealPlan(patientId: string | null, date?: string): UseMealPla
         p_notes:      params.notes ?? undefined,
       });
       if (err) return { success: false as const, error: err.message };
+      if (!newPlanId) return { success: false as const, error: 'Erro ao criar plano' };
       refresh();
-      return { success: true as const, planId: data as string };
+      return { success: true as const, planId: newPlanId };
     } catch {
       return { success: false as const, error: 'Erro ao criar plano' };
     } finally {
@@ -178,7 +201,7 @@ export function useMealPlan(patientId: string | null, date?: string): UseMealPla
   const upsertItem = async (params: UpsertItemParams) => {
     setIsSubmitting(true);
     try {
-      const { data, error: err } = await supabase.rpc('upsert_meal_plan_item', {
+      const { data: newItemId, error: err } = await supabase.rpc('upsert_meal_plan_item', {
         p_plan_id:   params.planId,
         p_meal_time: params.mealTime,
         p_food_name: params.foodName,
@@ -191,8 +214,9 @@ export function useMealPlan(patientId: string | null, date?: string): UseMealPla
         p_item_id:   params.itemId ?? undefined,
       });
       if (err) return { success: false as const, error: err.message };
+      if (!newItemId) return { success: false as const, error: 'Erro ao salvar item' };
       refresh();
-      return { success: true as const, itemId: data as string };
+      return { success: true as const, itemId: newItemId };
     } catch {
       return { success: false as const, error: 'Erro ao salvar item' };
     } finally {
@@ -214,5 +238,19 @@ export function useMealPlan(patientId: string | null, date?: string): UseMealPla
     }
   };
 
-  return { items, planId, planTitle, planStartDate, planEndDate, planNotes, isLoading, error, isSubmitting, refresh, createPlan, upsertItem, deleteItem };
+  return {
+    items: summary.items,
+    planId: summary.planId,
+    planTitle: summary.planTitle,
+    planStartDate: summary.plan.startDate,
+    planEndDate: summary.plan.endDate,
+    planNotes: summary.plan.notes,
+    isLoading,
+    error,
+    isSubmitting,
+    refresh,
+    createPlan,
+    upsertItem,
+    deleteItem,
+  };
 }

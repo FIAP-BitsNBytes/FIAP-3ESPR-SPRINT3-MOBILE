@@ -10,11 +10,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, Flame, Star, Trophy, Users, Zap } from 'lucide-react-native';
-import { appStyles, colors, fontSize, radius, spacing } from '@/shared/theme';
+import { appStyles, colors, fontSize, palette, radius, spacing } from '@/shared/theme';
 import { useNutritionistPatients, type NutritionistPatient } from '../hooks/useNutritionistPatients';
 
-const MEDAL_COLORS = ['#F59E0B', '#94A3B8', '#CD7C2F'] as const;
-const LEVEL_COLORS = ['#64748B', '#059669', '#0891B2', '#7C3AED', '#DC2626'] as const;
+const MEDAL_COLORS = [palette.amber, palette.silver, palette.bronze] as const;
+const LEVEL_COLORS = [palette.slate, colors.success, colors.primary, palette.violet, colors.danger] as const;
 
 function getLevelColor(level: number): string {
   const index = Math.min(Math.floor((level - 1) / 5), LEVEL_COLORS.length - 1);

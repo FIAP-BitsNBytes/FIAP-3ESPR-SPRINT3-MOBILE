@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/shared/infrastructure/supabase/client';
 
 type InviteUserParams = {
@@ -13,9 +13,21 @@ type InviteUserResult =
   | { success: true; error: null }
   | { success: false; error: string };
 
+/** Corpo de resposta da Edge Function `invite-user`. */
+interface InviteUserResponse {
+  error?: string;
+}
+
 export const useInviteUser = () => {
   const [isInviting, setIsInviting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const inviteUser = async (params: InviteUserParams): Promise<InviteUserResult> => {
     setIsInviting(true);
@@ -24,7 +36,7 @@ export const useInviteUser = () => {
       const inviteRedirectTo =
         typeof window !== 'undefined' ? `${window.location.origin}/accept-invite` : params.redirectTo;
 
-      const { data, error: funcErr } = await supabase.functions.invoke('invite-user', {
+      const { data, error: funcErr } = await supabase.functions.invoke<InviteUserResponse>('invite-user', {
         body: { ...params, redirectTo: inviteRedirectTo },
       });
       if (funcErr) throw funcErr;
@@ -32,10 +44,10 @@ export const useInviteUser = () => {
       return { success: true, error: null };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Nao foi possivel enviar o convite.';
-      setError(message);
+      if (isMountedRef.current) setError(message);
       return { success: false, error: message };
     } finally {
-      setIsInviting(false);
+      if (isMountedRef.current) setIsInviting(false);
     }
   };
 

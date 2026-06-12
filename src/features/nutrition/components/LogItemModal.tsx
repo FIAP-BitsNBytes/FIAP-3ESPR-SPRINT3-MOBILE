@@ -84,7 +84,7 @@ export function LogItemModal({ item, isSubmitting, onClose, onSubmit }: LogItemM
             </TouchableOpacity>
             <TouchableOpacity style={styles.confirmBtn} onPress={handleSubmit} disabled={isSubmitting} activeOpacity={0.8}>
               {isSubmitting
-                ? <ActivityIndicator color="white" size="small" />
+                ? <ActivityIndicator color={colors.onPrimary} size="small" />
                 : <Text style={styles.confirmText}>Confirmar</Text>}
             </TouchableOpacity>
           </View>
@@ -125,5 +125,5 @@ const styles = StyleSheet.create({
     flex: 1, padding: spacing.md, borderRadius: radius.md,
     alignItems: 'center', backgroundColor: colors.primary,
   },
-  confirmText: { color: 'white', fontWeight: '700' },
+  confirmText: { color: colors.onPrimary, fontWeight: '700' },
 });

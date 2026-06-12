@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { FlatList, View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView, ActivityIndicator } from 'react-native';
+import { FlatList, View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { History, ArrowLeft, Database, User, Clock, ChevronRight, Filter } from 'lucide-react-native';
 import { colors, spacing, radius, fontSize, shadow } from '@/shared/theme';
 import { useRouter } from 'expo-router';
 import { useAuditLogs, AuditLog } from '../hooks/useAuditLogs';
+import { AppModal } from '@/shared/components/ui/AppModal';
 
 const formatDate = (dateString: string, formatStr: 'short' | 'long') => {
   const date = new Date(dateString);
@@ -61,42 +62,42 @@ export function AuditLogsScreen() {
   const { logs, isLoading, refresh } = useAuditLogs();
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
 
+  const closeDetailModal = () => {
+    setSelectedLog(null);
+  };
+
   const renderDetailModal = () => (
-    <Modal visible={!!selectedLog} animationType="fade" transparent>
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <View style={styles.modalHeader}>
-            <History color={colors.primary} size={24} />
-            <Text style={styles.modalTitle}>Detalhes do Log</Text>
-            <TouchableOpacity onPress={() => setSelectedLog(null)} style={styles.closeBtn}>
-              <Text style={styles.closeBtnText}>Fechar</Text>
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView style={styles.modalBody}>
-            <View style={styles.detailRow}>
-              <Database size={16} color={colors.muted} />
-              <Text style={styles.detailLabel}>Tabela:</Text>
-              <Text style={styles.detailValue}>{selectedLog?.table_name}</Text>
-            </View>
-            <View style={styles.detailRow}>
-              <Clock size={16} color={colors.muted} />
-              <Text style={styles.detailLabel}>Executado em:</Text>
-              <Text style={styles.detailValue}>
-                {selectedLog && formatDate(selectedLog.executed_at, 'long')}
-              </Text>
-            </View>
-
-            <Text style={styles.sectionTitle}>Dados Alterados</Text>
-            <View style={styles.jsonContainer}>
-              <Text style={styles.jsonText}>
-                {JSON.stringify(selectedLog?.new_data || selectedLog?.old_data, null, 2)}
-              </Text>
-            </View>
-          </ScrollView>
-        </View>
+    <AppModal visible={!!selectedLog} onClose={closeDetailModal} variant="center">
+      <View style={styles.modalHeader}>
+        <History color={colors.primary} size={24} />
+        <Text style={styles.modalTitle}>Detalhes do Log</Text>
+        <TouchableOpacity onPress={closeDetailModal} style={styles.closeBtn}>
+          <Text style={styles.closeBtnText}>Fechar</Text>
+        </TouchableOpacity>
       </View>
-    </Modal>
+
+      <ScrollView style={styles.modalBody}>
+        <View style={styles.detailRow}>
+          <Database size={16} color={colors.muted} />
+          <Text style={styles.detailLabel}>Tabela:</Text>
+          <Text style={styles.detailValue}>{selectedLog?.table_name}</Text>
+        </View>
+        <View style={styles.detailRow}>
+          <Clock size={16} color={colors.muted} />
+          <Text style={styles.detailLabel}>Executado em:</Text>
+          <Text style={styles.detailValue}>
+            {selectedLog && formatDate(selectedLog.executed_at, 'long')}
+          </Text>
+        </View>
+
+        <Text style={styles.sectionTitle}>Dados Alterados</Text>
+        <View style={styles.jsonContainer}>
+          <Text style={styles.jsonText}>
+            {JSON.stringify(selectedLog?.new_data || selectedLog?.old_data, null, 2)}
+          </Text>
+        </View>
+      </ScrollView>
+    </AppModal>
   );
 
   return (
@@ -195,18 +196,6 @@ const styles = StyleSheet.create({
   actionLabel: { fontSize: 10, fontWeight: '700' },
   empty: { padding: 100, alignItems: 'center', gap: spacing.md },
   emptyText: { color: colors.muted, fontSize: fontSize.md },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    height: '80%',
-    padding: spacing.xl,
-  },
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -221,7 +210,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   closeBtnText: { color: colors.primary, fontWeight: '700' },
-  modalBody: { flex: 1 },
+  modalBody: { maxHeight: '80%' },
   detailRow: {
     flexDirection: 'row',
     alignItems: 'center',

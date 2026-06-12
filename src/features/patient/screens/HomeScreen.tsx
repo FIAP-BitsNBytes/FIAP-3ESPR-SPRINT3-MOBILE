@@ -81,7 +81,7 @@ export function PatientHomeScreen() {
           <Text style={styles.sectionTitle}>Hoje</Text>
           <View style={styles.statsRow}>
             <StatCard label="Calorias" value={totalCalories} Icon={Plus} color={colors.primary} />
-            <StatCard label="Água" value={`${waterL}L`} Icon={Droplets} color="#38BDF8" />
+            <StatCard label="Água" value={`${waterL}L`} Icon={Droplets} color={colors.waterAccent} />
             <StatCard label="Pontos" value={gamLoading ? '—' : stats.points} Icon={Beef} color={colors.success} />
           </View>
         </View>

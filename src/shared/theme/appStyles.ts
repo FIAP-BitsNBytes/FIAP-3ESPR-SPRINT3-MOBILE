@@ -239,4 +239,18 @@ export const appStyles = StyleSheet.create({
     fontSize: fontSize.sm,
     lineHeight: 20,
   },
+  // Shared modal patterns (consumed by AppModal — see src/shared/components/ui/AppModal.tsx)
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    padding: spacing.lg,
+  },
+  modalCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    padding: spacing.xl,
+    gap: spacing.md,
+    ...shadow.md,
+  },
 });

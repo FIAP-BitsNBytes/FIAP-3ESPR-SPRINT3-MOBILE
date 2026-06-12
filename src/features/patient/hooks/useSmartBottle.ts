@@ -40,6 +40,39 @@ export interface UseSmartBottleReturn {
   error: string | null;
 }
 
+export function parseSmartBottlePayload(
+  payloadString: string,
+): { amountMl: number; deviceId: string; timestamp: string } | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(payloadString);
+  } catch {
+    return null;
+  }
+
+  if (
+    typeof parsed !== 'object' ||
+    parsed === null ||
+    typeof (parsed as Record<string, unknown>).amountMl !== 'number'
+  ) {
+    return null;
+  }
+
+  const { amountMl, deviceId, timestamp } = parsed as {
+    amountMl: number;
+    deviceId?: string;
+    timestamp?: string;
+  };
+
+  if (amountMl <= 0 || amountMl > 2000) return null;
+
+  return {
+    amountMl,
+    deviceId: deviceId ?? 'unknown',
+    timestamp: timestamp ?? new Date().toISOString(),
+  };
+}
+
 export function useSmartBottle(): UseSmartBottleReturn {
   const { user } = useAuthContext();
   const [status, setStatus] = useState<SmartBottleStatus>('disconnected');
@@ -52,33 +85,12 @@ export function useSmartBottle(): UseSmartBottleReturn {
     async (msg: { topic: string; payloadString: string }) => {
       if (!user) return;
 
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(msg.payloadString);
-      } catch {
-        // invalid JSON — discard silently
-        return;
-      }
+      const payload = parseSmartBottlePayload(msg.payloadString);
+      if (!payload) return;
 
-      if (
-        typeof parsed !== 'object' ||
-        parsed === null ||
-        typeof (parsed as Record<string, unknown>).amountMl !== 'number'
-      ) {
-        return;
-      }
+      const { amountMl, deviceId, timestamp: loggedAt } = payload;
 
-      const { amountMl, deviceId, timestamp } = parsed as {
-        amountMl: number;
-        deviceId?: string;
-        timestamp?: string;
-      };
-
-      if (amountMl <= 0 || amountMl > 2000) return;
-
-      const loggedAt = timestamp ?? new Date().toISOString();
-
-      const reading: SmartBottleReading = { deviceId: deviceId ?? 'unknown', amountMl, timestamp: loggedAt };
+      const reading: SmartBottleReading = { deviceId, amountMl, timestamp: loggedAt };
 
       const { error: insertError } = await supabase.from('meal_logs').insert({
         patient_id: user.id,

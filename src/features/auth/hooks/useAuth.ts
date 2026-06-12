@@ -45,6 +45,7 @@ export const useAuth = () => {
     user: null,
     isAuthenticated: false,
     isLoading: true,
+    error: null,
   });
 
   // Trava para evitar operações de autenticação concorrentes
@@ -61,7 +62,7 @@ export const useAuth = () => {
         
         if (user) {
           await AsyncStorage.setItem(STORAGE_KEY, user.id);
-          setState({ user, isAuthenticated: true, isLoading: false });
+          setState({ user, isAuthenticated: true, isLoading: false, error: null });
         } else {
           // Caso crítico: Autenticado no Auth mas sem perfil no DB
           console.error('[Auth] Perfil não encontrado para usuário autenticado');
@@ -74,7 +75,7 @@ export const useAuth = () => {
       // Limpeza total em caso de qualquer falha
       updateInterceptorUserId(null);
       await AsyncStorage.removeItem(STORAGE_KEY);
-      setState({ user: null, isAuthenticated: false, isLoading: false });
+      setState({ user: null, isAuthenticated: false, isLoading: false, error: null });
     }
   };
 
@@ -89,7 +90,15 @@ export const useAuth = () => {
     init();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (mounted) updateSession(session);
+      try {
+        if (mounted) await updateSession(session);
+      } catch (err) {
+        console.error('[Auth] Falha inesperada no listener onAuthStateChange', err);
+        if (mounted) {
+          const message = err instanceof Error ? err.message : 'Falha ao processar mudança de sessão.';
+          setState(prev => ({ ...prev, isLoading: false, error: message }));
+        }
+      }
     });
 
     return () => {
@@ -125,7 +134,7 @@ export const useAuth = () => {
     } finally {
       updateInterceptorUserId(null);
       await AsyncStorage.removeItem(STORAGE_KEY);
-      setState({ user: null, isAuthenticated: false, isLoading: false });
+      setState({ user: null, isAuthenticated: false, isLoading: false, error: null });
       setIsProcessing(false);
     }
   };

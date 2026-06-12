@@ -18,6 +18,7 @@ export const colors = {
   warning: '#B45309',
   info: '#2563EB',
   water: '#0284C7',
+  waterAccent: '#38BDF8',
 
   // Text
   text: '#164E63',
@@ -27,6 +28,20 @@ export const colors = {
   // Structural
   border: '#BAE6FD',
   borderSubtle: '#CFFAFE',
+} as const;
+
+export const palette = {
+  // Cross-feature accents
+  amber: '#F59E0B',
+  emerald: '#10B981',
+  blue: '#3B82F6',
+  violet: '#8B5CF6',
+  pink: '#EC4899',
+  indigo: '#6366F1',
+  slate: '#6B7280',
+  silver: '#94A3B8',
+  bronze: '#CD7C2F',
+  pulse: '#4ADE80',
 } as const;
 
 export const spacing = {
