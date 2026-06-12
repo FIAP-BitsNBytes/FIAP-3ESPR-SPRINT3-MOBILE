@@ -1,9 +1,9 @@
-import { useMemo, useState, useEffect } from 'react';
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Image } from 'react-native';
+import { useMemo, useState } from 'react';
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Droplets, Plus, Utensils, Zap } from 'lucide-react-native';
 import { appStyles, colors, fontSize, radius, spacing } from '@/shared/theme';
-import { getSignedPhotoUrl } from '@/shared/infrastructure/supabase/storage';
+import { MealPhotoThumb } from '@/shared/components/MealPhotoThumb';
 import { useLogWater } from '../hooks/useLogWater';
 import { useTodayLogs } from '../hooks/useTodayLogs';
 import { useLogMeal, type LogFreeMealParams } from '../hooks/useLogMeal';
@@ -24,17 +24,6 @@ const UNIT_LABELS: Record<MeasurementUnit, string> = {
   GRAMS: 'g', MILLILITERS: 'ml', UNITS: 'un', PORTIONS: 'porç.', CALORIES: 'kcal',
 };
 
-function FreeMealPhoto({ photoPath }: { photoPath: string }) {
-  const [url, setUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    getSignedPhotoUrl(photoPath).then(setUrl);
-  }, [photoPath]);
-
-  if (!url) return <View style={styles.photoPlaceholder} />;
-  return <Image source={{ uri: url }} style={styles.photoThumb} />;
-}
-
 export function PatientNutritionScreen() {
   const today = new Date().toISOString().slice(0, 10);
   const planDetail = usePlanDetail(undefined, today);
@@ -49,6 +38,10 @@ export function PatientNutritionScreen() {
 
   const { items, plan, isLoading, error } = planDetail;
   const freeMeals = useMemo(() => meals.filter(m => m.category === 'MEAL'), [meals]);
+  const hasIotWater = useMemo(
+    () => meals.some(m => m.category === 'WATER' && m.source?.toUpperCase() === 'IOT'),
+    [meals],
+  );
   const loggedCount = useMemo(() => items.filter(i => i.logId && i.logId !== 'pending').length, [items]);
   const totalXpToday = useMemo(() => items.reduce((s, i) => s + i.xpEarned, 0), [items]);
 
@@ -161,7 +154,7 @@ export function PatientNutritionScreen() {
         {/* Tab: Água & Extra */}
         {activeTab === 'extras' && (
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-            <WaterSection waterMl={waterMl} isLogging={isWaterLogging} onLogWater={handleWater} />
+            <WaterSection waterMl={waterMl} isLogging={isWaterLogging} onLogWater={handleWater} hasIotEntries={hasIotWater} />
 
             <SmartBottleCard
               status={bottleStatus}
@@ -182,7 +175,7 @@ export function PatientNutritionScreen() {
             {freeMeals.length > 0 ? (
               freeMeals.map(m => (
                 <View key={m.id} style={styles.freeMealCard}>
-                  {m.photoPath && <FreeMealPhoto photoPath={m.photoPath} />}
+                  {m.photoPath && <MealPhotoThumb photoPath={m.photoPath} />}
                   <View style={styles.freeMealInfo}>
                     <Text style={styles.freeMealName}>{m.foodName}</Text>
                     <Text style={styles.freeMealMeta}>
@@ -240,8 +233,6 @@ const styles = StyleSheet.create({
   freeMealInfo:   { flex: 1, justifyContent: 'center', gap: 2 },
   freeMealName:   { color: colors.text, fontSize: fontSize.sm, fontWeight: '600' },
   freeMealMeta:   { color: colors.muted, fontSize: fontSize.xs },
-  photoThumb:     { width: 60, height: 60, borderRadius: 8 },
-  photoPlaceholder: { width: 60, height: 60, borderRadius: 8, backgroundColor: colors.surfaceHigh },
   emptySub:       { color: colors.muted, fontSize: fontSize.sm, textAlign: 'center' },
   errorText:      { color: colors.danger, fontSize: fontSize.sm, textAlign: 'center' },
 });

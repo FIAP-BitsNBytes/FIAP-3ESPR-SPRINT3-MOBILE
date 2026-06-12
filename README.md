@@ -366,7 +366,23 @@ Fluxo:
 **4c. `storage.test.ts`** — 4 testes das funções de armazenamento
 - Upload success/failure, getSignedPhotoUrl success/failure
 
-Resultado: **104 testes passando** (baseline 93 + 11 novos)
+**4d. `mqttClient.test.ts`** — 13 testes do wrapper MQTT (paho-mqtt mockado)
+- Parse da URL do broker, ciclo de status (connecting → connected / error / disconnected), useSSL, subscribe com QoS 0, chegada de mensagens, disconnect resiliente
+
+Resultado: **117 testes passando em 17 suites**
+
+---
+
+### Roteiro do Vídeo de Demonstração
+
+Sequência sugerida (~4 min) cobrindo todos os critérios da rubrica:
+
+1. **Login** (30s) — autenticação do paciente; mostrar sessão persistida (fechar e reabrir o app sem novo login).
+2. **SmartBottle IoT** (60s) — na tela Alimentação, conectar a garrafa (card SmartBottle); em outro terminal, rodar `node scripts/iot-simulator/simulator.js --patient <uuid>`; mostrar a barra de água subindo sozinha (sem refresh) e o indicador "via SmartBottle (IoT)".
+3. **Realtime nutricionista** (45s) — em outra janela/aba, logar como nutricionista e abrir o detalhe do paciente; mostrar badge "💧 Garrafa online" aparecendo ao vivo e o consumo de água atualizando.
+4. **Câmera/galeria** (60s) — registrar refeição livre com foto: negar a permissão da câmera (mostrar mensagem de orientação + fallback galeria), depois conceder e capturar; mostrar thumbnail no log do paciente e no detalhe do nutricionista.
+5. **Estados de UI** (30s) — exibir loading/empty/error em telas (ex.: modo avião para erro, lista vazia).
+6. **Encerramento** (15s) — visão do Supabase: linhas `source='IOT'` em `meal_logs` e bucket privado `meal-photos`.
 
 ---
 

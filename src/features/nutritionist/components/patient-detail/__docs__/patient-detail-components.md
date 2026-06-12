@@ -13,6 +13,7 @@ Cada arquivo encapsula uma seção visual da tela de detalhe do paciente (visão
 - **`TodayGoalsSection`** — seção "Metas de hoje", compondo 4 `GoalBar` (Calorias, Água, Refeições, Sequência).
 - **`WeeklyChartsSection`** — seção "Evolução semanal", compondo 2 `WeeklyChart` (Calorias e Água).
 - **`InsightCard`** — card de "Análise do nutricionista" com texto de insight principal e metadados opcionais.
+- **`FreeMealLogsSection`** — lista das refeições livres do paciente no dia: thumbnail da foto (via URL assinada) quando disponível, badge "IoT" para entradas com `source === 'IOT'`. Retorna `null` quando `freeMeals` está vazio.
 
 ## State / Props
 
@@ -89,11 +90,21 @@ Cor de cada barra: cinza (`colors.border`) se `value === 0`; verde/amarelo/verme
 | `insightText` | `string` | Texto principal do insight (sempre exibido). |
 | `insightMeta` | `string` | Texto secundário; se vazio (`''`), a linha de metadados não é renderizada. |
 
+### `FreeMealLogsSection`
+
+| Prop | Tipo | Descrição |
+|---|---|---|
+| `freeMeals` | `MealLogItem[]` | Registros de refeições livres hoje (categoria `MEAL`; filtrado pelo caller). |
+
+Renderiza `null` quando `freeMeals.length === 0`. Cada linha exibe: thumbnail da foto (`MealPhotoThumb`, 56 dp) se `photoPath` existir, nome do alimento com badge "IoT" se `source?.toUpperCase() === 'IOT'`, e sub-linha com quantidade, unidade e calorias (quando disponíveis).
+
 ## Dependencies
 
 - `@/shared/theme` — `colors`, `fontSize`, `radius`, `shadow`, `spacing`, `appStyles` (estilos e `sectionTitle`).
 - `@/features/patient/hooks/useProgressMetrics` — tipo `DailyProgressItem` (usado por `WeeklyChart` e `WeeklyChartsSection`).
 - `@/features/nutrition` — tipos `PlanItem`, `PlanMeta` (usado por `MealPlanEntryCard`).
+- `@/features/patient/hooks/useTodayLogs` — tipo `MealLogItem` (usado por `FreeMealLogsSection`).
+- `@/shared/components/MealPhotoThumb` — thumbnail de foto com URL assinada (usado por `FreeMealLogsSection`).
 - `lucide-react-native` — ícones (`ArrowLeft`, `ClipboardList`, `ChevronRight`, `Plus`, `Target`).
 
 ## Edge Cases
@@ -103,3 +114,6 @@ Cor de cada barra: cinza (`colors.border`) se `value === 0`; verde/amarelo/verme
 3. **`MealPlanEntryCard` sem plano (`plan === null`)** — renderiza o bloco "Criar plano" em vez do resumo; `planAdherencePct` é ignorado nesse caso.
 4. **`InsightCard` com `insightMeta` vazio** — a `<Text>` de metadados não é renderizada (`insightMeta ? <Text>... : null`), evitando espaço vazio extra.
 5. **`TodayGoalsSection` / `WeeklyChartsSection`** — são puramente apresentacionais; toda a lógica de fallback (`CALORIE_FALLBACK`, `MEAL_FALLBACK`, etc.) permanece em `NutritionistPatientDetailScreen`, que passa valores já resolvidos.
+6. **`FreeMealLogsSection` vazia** — retorna `null` diretamente; sem renderização de card ou cabeçalho vazio.
+7. **`FreeMealLogsSection` sem foto** — `meal.photoPath` falsy → `MealPhotoThumb` não é renderizado; a linha apenas exibe nome e metadados.
+8. **`FreeMealLogsSection` com RLS** — `MealPhotoThumb` busca URL assinada; se o nutricionista não tiver acesso ao objeto (RLS não satisfeita), `getSignedPhotoUrl` retorna `null` e o placeholder é exibido silenciosamente.

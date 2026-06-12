@@ -49,15 +49,35 @@ type Tab = 'plan' | 'extras' | 'freeMeals';
 
 ### WaterSection
 
-**Purpose**: Water intake logging and display with quick-log buttons.
+**Purpose**: Water intake logging and display with quick-log buttons. Optionally shows an "IoT" pill badge and a "via SmartBottle (IoT)" sub-label when any of today's WATER logs were inserted by the SmartBottle IoT integration (`source === 'IOT'`).
+
+**Props**:
+```typescript
+interface WaterSectionProps {
+  waterMl: number;
+  isLogging: boolean;
+  onLogWater: (ml: number) => void;
+  /** When true, shows a compact "via SmartBottle (IoT)" indicator. */
+  hasIotEntries?: boolean;
+}
+```
 
 **Usage**:
 ```tsx
 <WaterSection 
-  waterMl={1500} 
-  isLoading={false} 
-  onLogWater={async (ml) => { /* handle */ }} 
+  waterMl={1500}
+  isLogging={false}
+  onLogWater={(ml) => handleWater(ml)}
+  hasIotEntries={hasIotWater}
 />
+```
+
+`hasIotWater` is derived in the parent screen via:
+```ts
+const hasIotWater = useMemo(
+  () => meals.some(m => m.category === 'WATER' && m.source?.toUpperCase() === 'IOT'),
+  [meals],
+);
 ```
 
 ---

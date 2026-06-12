@@ -12,6 +12,7 @@ import { DailyProgressItem, useProgressMetrics } from '@/features/patient/hooks/
 import { usePlanDetail } from '@/features/nutrition/hooks/usePlanDetail';
 import { useDeviceStatus } from '../hooks/useDeviceStatus';
 import {
+  FreeMealLogsSection,
   InsightCard,
   MealPlanEntryCard,
   PatientDetailHeader,
@@ -35,7 +36,8 @@ export function NutritionistPatientDetailScreen() {
   const { isOnline: isBottleOnline } = useDeviceStatus(patientId ?? null);
 
   const today = new Date().toISOString().slice(0, 10);
-  const mealCount = meals.filter(m => m.category === 'MEAL').length;
+  const freeMeals = meals.filter(m => m.category === 'MEAL');
+  const mealCount = freeMeals.length;
   const xpInLevel = stats.experience % 500;
   const patientName = name ?? 'Paciente';
 
@@ -152,6 +154,8 @@ export function NutritionistPatientDetailScreen() {
           waterGoalMl={WATER_GOAL_ML}
           today={today}
         />
+
+        <FreeMealLogsSection freeMeals={freeMeals} />
 
         <InsightCard insightText={insightText} insightMeta={insightMeta} />
       </ScrollView>

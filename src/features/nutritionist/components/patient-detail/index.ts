@@ -5,3 +5,4 @@ export { MealPlanEntryCard } from './MealPlanEntryCard';
 export { TodayGoalsSection } from './TodayGoalsSection';
 export { WeeklyChartsSection } from './WeeklyChartsSection';
 export { InsightCard } from './InsightCard';
+export { FreeMealLogsSection } from './FreeMealLogsSection';
