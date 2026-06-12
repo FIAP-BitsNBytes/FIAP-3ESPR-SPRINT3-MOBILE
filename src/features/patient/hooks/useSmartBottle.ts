@@ -76,9 +76,9 @@ export function useSmartBottle(): UseSmartBottleReturn {
 
       const loggedAt = timestamp ?? new Date().toISOString();
 
-      setLastReading({ deviceId: deviceId ?? 'unknown', amountMl, timestamp: loggedAt });
+      const reading: SmartBottleReading = { deviceId: deviceId ?? 'unknown', amountMl, timestamp: loggedAt };
 
-      await supabase.from('meal_logs').insert({
+      const { error: insertError } = await supabase.from('meal_logs').insert({
         patient_id: user.id,
         food_name: 'Água (SmartBottle)',
         quantity: amountMl,
@@ -87,6 +87,13 @@ export function useSmartBottle(): UseSmartBottleReturn {
         source: 'IOT',
         logged_at: loggedAt,
       });
+
+      if (insertError) {
+        setError('Falha ao salvar leitura da garrafa');
+        return;
+      }
+
+      setLastReading(reading);
     },
     [user],
   );
@@ -103,7 +110,7 @@ export function useSmartBottle(): UseSmartBottleReturn {
       clientId,
       onStatusChange: (s) => {
         setStatus(s);
-        if (s === 'connected') handle.subscribe(topic);
+        if (s === 'connected') clientRef.current?.subscribe(topic);
         if (s === 'error') setError('Falha na conexão com o broker MQTT');
       },
       onMessage: (msg) => { void handleMessage(msg); },

@@ -265,7 +265,7 @@ export type Database = {
           photo_path: string | null
           plan_item_id: string | null
           quantity: number
-          source: string
+          source: 'MANUAL' | 'IOT'
           unit: Database["public"]["Enums"]["measurement_unit"]
           updated_at: string
           updated_by: string | null
@@ -287,7 +287,7 @@ export type Database = {
           photo_path?: string | null
           plan_item_id?: string | null
           quantity?: number
-          source?: string
+          source?: 'MANUAL' | 'IOT'
           unit?: Database["public"]["Enums"]["measurement_unit"]
           updated_at?: string
           updated_by?: string | null
@@ -309,7 +309,7 @@ export type Database = {
           photo_path?: string | null
           plan_item_id?: string | null
           quantity?: number
-          source?: string
+          source?: 'MANUAL' | 'IOT'
           unit?: Database["public"]["Enums"]["measurement_unit"]
           updated_at?: string
           updated_by?: string | null

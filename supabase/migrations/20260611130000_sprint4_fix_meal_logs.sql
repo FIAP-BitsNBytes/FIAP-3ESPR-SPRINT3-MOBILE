@@ -13,14 +13,16 @@ VALUES ('meal-photos', 'meal-photos', false, 5242880, ARRAY['image/jpeg', 'image
 ON CONFLICT (id) DO NOTHING;
 
 -- RLS: patients can insert/read their own photos
-CREATE POLICY IF NOT EXISTS "patient_insert_own_meal_photos" ON storage.objects
+DROP POLICY IF EXISTS "patient_insert_own_meal_photos" ON storage.objects;
+CREATE POLICY "patient_insert_own_meal_photos" ON storage.objects
   FOR INSERT TO authenticated
   WITH CHECK (
     bucket_id = 'meal-photos' AND
     (storage.foldername(name))[1] = auth.uid()::text
   );
 
-CREATE POLICY IF NOT EXISTS "patient_select_own_meal_photos" ON storage.objects
+DROP POLICY IF EXISTS "patient_select_own_meal_photos" ON storage.objects;
+CREATE POLICY "patient_select_own_meal_photos" ON storage.objects
   FOR SELECT TO authenticated
   USING (
     bucket_id = 'meal-photos' AND
@@ -28,7 +30,8 @@ CREATE POLICY IF NOT EXISTS "patient_select_own_meal_photos" ON storage.objects
   );
 
 -- RLS: nutritionists can read photos of clinic patients
-CREATE POLICY IF NOT EXISTS "nutritionist_select_patient_meal_photos" ON storage.objects
+DROP POLICY IF EXISTS "nutritionist_select_patient_meal_photos" ON storage.objects;
+CREATE POLICY "nutritionist_select_patient_meal_photos" ON storage.objects
   FOR SELECT TO authenticated
   USING (
     bucket_id = 'meal-photos' AND
