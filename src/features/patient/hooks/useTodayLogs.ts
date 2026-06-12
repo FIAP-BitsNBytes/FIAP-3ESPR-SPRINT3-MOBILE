@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useAuthContext } from '@/features/auth/context/AuthContext';
+import { useSupabaseQuery } from '@/shared/hooks/useSupabaseQuery';
 import { supabase } from '@/shared/infrastructure/supabase/client';
 import { LogType } from '@/shared/infrastructure/supabase/database.types';
-import { useAuthContext } from '@/features/auth/context/AuthContext';
+import type { MeasurementUnit } from '@/features/nutrition';
 import { todayIso } from '@/shared/utils/date';
-import { uniqueChannelName } from '@/shared/utils/realtime';
 
 export interface MealLogItem {
   id: string;
@@ -13,6 +13,7 @@ export interface MealLogItem {
   unit: string;
   category: LogType;
   loggedAt: string;
+  source?: string;
 }
 
 interface TodayLogsState {
@@ -23,40 +24,48 @@ interface TodayLogsState {
   error: string | null;
 }
 
+interface TodayLogsData {
+  meals: MealLogItem[];
+  totalCalories: number;
+  waterMl: number;
+}
+
+/** Linha bruta retornada pela consulta a `meal_logs`, tipada na borda. */
+interface MealLogRow {
+  id: string;
+  food_name: string;
+  calories: number | null;
+  quantity: number;
+  unit: MeasurementUnit;
+  category: LogType;
+  logged_at: string;
+  source?: string;
+}
+
+const EMPTY_DATA: TodayLogsData = { meals: [], totalCalories: 0, waterMl: 0 };
+
 export const useTodayLogs = (patientId?: string | null): TodayLogsState => {
   const { user } = useAuthContext();
-  const [state, setState] = useState<TodayLogsState>({
-    meals: [],
-    totalCalories: 0,
-    waterMl: 0,
-    isLoading: true,
-    error: null,
-  });
+  const targetPatientId = patientId === null ? null : (patientId ?? user?.id ?? null);
 
-  useEffect(() => {
-    let cancelled = false;
-    let channel: ReturnType<typeof supabase.channel> | null = null;
-
-    const fetch = async (targetPatientId: string) => {
+  const { data, isLoading, error } = useSupabaseQuery<TodayLogsData>({
+    fetcher: async () => {
+      if (!targetPatientId) return EMPTY_DATA;
       const today = todayIso();
 
-      const { data, error } = await supabase
+      const { data, error: err } = await supabase
         .from('meal_logs')
-        .select('id, food_name, calories, quantity, unit, category, logged_at')
+        .select('id, food_name, calories, quantity, unit, category, logged_at, source')
         .eq('patient_id', targetPatientId)
         .gte('logged_at', `${today}T00:00:00`)
         .lte('logged_at', `${today}T23:59:59`)
         .is('deleted_at', null)
         .order('logged_at', { ascending: true });
 
-      if (cancelled) return;
+      if (err) throw err;
 
-      if (error || !data) {
-        setState(prev => ({ ...prev, isLoading: false, error: error?.message ?? 'Erro ao carregar registros' }));
-        return;
-      }
-
-      const meals: MealLogItem[] = data.map(row => ({
+      const rows = (data ?? []) as unknown as MealLogRow[];
+      const meals: MealLogItem[] = rows.map(row => ({
         id: row.id,
         foodName: row.food_name,
         calories: row.calories,
@@ -64,6 +73,7 @@ export const useTodayLogs = (patientId?: string | null): TodayLogsState => {
         unit: row.unit,
         category: row.category,
         loggedAt: row.logged_at,
+        source: row.source ?? 'manual',
       }));
 
       const totalCalories = meals
@@ -75,33 +85,16 @@ export const useTodayLogs = (patientId?: string | null): TodayLogsState => {
         .filter(m => m.category === 'WATER' && m.unit === 'MILLILITERS')
         .reduce((sum, m) => sum + m.quantity, 0);
 
-      setState({ meals, totalCalories, waterMl, isLoading: false, error: null });
-    };
+      return { meals, totalCalories, waterMl };
+    },
+    enabled: targetPatientId !== null,
+    channelPrefix: 'today-logs',
+    realtime: targetPatientId
+      ? [{ table: 'meal_logs', filter: `patient_id=eq.${targetPatientId}` }]
+      : undefined,
+    deps: [targetPatientId],
+  });
 
-    const targetPatientId = patientId === null ? null : (patientId ?? user?.id);
-    if (!targetPatientId) {
-      if (!cancelled) setState(prev => ({ ...prev, isLoading: false }));
-      return;
-    }
-
-    fetch(targetPatientId);
-
-    channel = supabase
-      .channel(uniqueChannelName('today-logs', targetPatientId))
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'meal_logs', filter: `patient_id=eq.${targetPatientId}` },
-        () => { void fetch(targetPatientId); }
-      )
-      .subscribe();
-
-    return () => {
-      cancelled = true;
-      if (channel) {
-        void supabase.removeChannel(channel);
-      }
-    };
-  }, [patientId, user?.id]);
-
-  return state;
+  const result = data ?? EMPTY_DATA;
+  return { ...result, isLoading, error };
 };

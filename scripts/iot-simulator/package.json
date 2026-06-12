@@ -1,0 +1,26 @@
+{
+  "name": "nutriapp-iot-simulator",
+  "version": "1.0.0",
+  "description": "IoT SmartBottle MQTT Simulator for NutriApp",
+  "main": "simulator.js",
+  "scripts": {
+    "start": "node simulator.js",
+    "start:local": "node simulator.js --broker mqtt://localhost:1883",
+    "dev": "node simulator.js --broker mqtt://test.mosquitto.org:8080"
+  },
+  "keywords": [
+    "iot",
+    "mqtt",
+    "smartbottle",
+    "hydration",
+    "nutriapp"
+  ],
+  "author": "NutriApp Team",
+  "license": "MIT",
+  "dependencies": {
+    "paho-mqtt": "^1.0.3"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
