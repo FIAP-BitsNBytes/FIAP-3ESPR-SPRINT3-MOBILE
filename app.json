@@ -30,7 +30,14 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "NutriApp precisa de acesso à galeria para adicionar fotos às refeições.",
+          "cameraPermission": "NutriApp precisa da câmera para fotografar suas refeições."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

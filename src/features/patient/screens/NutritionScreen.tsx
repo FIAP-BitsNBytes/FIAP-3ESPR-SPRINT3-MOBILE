@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { useMemo, useState, useEffect } from 'react';
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Droplets, Plus, Utensils, Zap } from 'lucide-react-native';
 import { appStyles, colors, fontSize, radius, spacing } from '@/shared/theme';
+import { getSignedPhotoUrl } from '@/shared/infrastructure/supabase/storage';
 import { useLogWater } from '../hooks/useLogWater';
 import { useTodayLogs } from '../hooks/useTodayLogs';
 import { useLogMeal, type LogFreeMealParams } from '../hooks/useLogMeal';
@@ -22,6 +23,17 @@ import type { MealTimeType, PlanItem, LogItemParams } from '@/features/nutrition
 const UNIT_LABELS: Record<MeasurementUnit, string> = {
   GRAMS: 'g', MILLILITERS: 'ml', UNITS: 'un', PORTIONS: 'porç.', CALORIES: 'kcal',
 };
+
+function FreeMealPhoto({ photoPath }: { photoPath: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    getSignedPhotoUrl(photoPath).then(setUrl);
+  }, [photoPath]);
+
+  if (!url) return <View style={styles.photoPlaceholder} />;
+  return <Image source={{ uri: url }} style={styles.photoThumb} />;
+}
 
 export function PatientNutritionScreen() {
   const today = new Date().toISOString().slice(0, 10);
@@ -170,11 +182,14 @@ export function PatientNutritionScreen() {
             {freeMeals.length > 0 ? (
               freeMeals.map(m => (
                 <View key={m.id} style={styles.freeMealCard}>
-                  <Text style={styles.freeMealName}>{m.foodName}</Text>
-                  <Text style={styles.freeMealMeta}>
-                    {m.quantity}{UNIT_LABELS[m.unit as MeasurementUnit] ?? m.unit}
-                    {m.calories ? ` · ${m.calories} kcal` : ''}
-                  </Text>
+                  {m.photoPath && <FreeMealPhoto photoPath={m.photoPath} />}
+                  <View style={styles.freeMealInfo}>
+                    <Text style={styles.freeMealName}>{m.foodName}</Text>
+                    <Text style={styles.freeMealMeta}>
+                      {m.quantity}{UNIT_LABELS[m.unit as MeasurementUnit] ?? m.unit}
+                      {m.calories ? ` · ${m.calories} kcal` : ''}
+                    </Text>
+                  </View>
                 </View>
               ))
             ) : (
@@ -221,9 +236,12 @@ const styles = StyleSheet.create({
   freeMealHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   addFreeBtn:     { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderRadius: 12, borderWidth: 1, borderColor: colors.primary + '55', backgroundColor: colors.primaryGlow },
   addFreeBtnText: { color: colors.primary, fontSize: fontSize.xs, fontWeight: '700' },
-  freeMealCard:   { backgroundColor: colors.surface, borderRadius: 12, padding: spacing.sm, borderWidth: 1, borderColor: colors.border, gap: 2 },
+  freeMealCard:   { backgroundColor: colors.surface, borderRadius: 12, padding: spacing.sm, borderWidth: 1, borderColor: colors.border, gap: spacing.sm, flexDirection: 'row' },
+  freeMealInfo:   { flex: 1, justifyContent: 'center', gap: 2 },
   freeMealName:   { color: colors.text, fontSize: fontSize.sm, fontWeight: '600' },
   freeMealMeta:   { color: colors.muted, fontSize: fontSize.xs },
+  photoThumb:     { width: 60, height: 60, borderRadius: 8 },
+  photoPlaceholder: { width: 60, height: 60, borderRadius: 8, backgroundColor: colors.surfaceHigh },
   emptySub:       { color: colors.muted, fontSize: fontSize.sm, textAlign: 'center' },
   errorText:      { color: colors.danger, fontSize: fontSize.sm, textAlign: 'center' },
 });

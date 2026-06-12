@@ -14,6 +14,7 @@ export interface MealLogItem {
   category: LogType;
   loggedAt: string;
   source?: string;
+  photoPath?: string | null;
 }
 
 interface TodayLogsState {
@@ -40,6 +41,7 @@ interface MealLogRow {
   category: LogType;
   logged_at: string;
   source?: string;
+  photo_path?: string | null;
 }
 
 const EMPTY_DATA: TodayLogsData = { meals: [], totalCalories: 0, waterMl: 0 };
@@ -55,7 +57,7 @@ export const useTodayLogs = (patientId?: string | null): TodayLogsState => {
 
       const { data, error: err } = await supabase
         .from('meal_logs')
-        .select('id, food_name, calories, quantity, unit, category, logged_at, source')
+        .select('id, food_name, calories, quantity, unit, category, logged_at, source, photo_path')
         .eq('patient_id', targetPatientId)
         .gte('logged_at', `${today}T00:00:00`)
         .lte('logged_at', `${today}T23:59:59`)
@@ -74,6 +76,7 @@ export const useTodayLogs = (patientId?: string | null): TodayLogsState => {
         category: row.category,
         loggedAt: row.logged_at,
         source: row.source ?? 'manual',
+        photoPath: row.photo_path ?? null,
       }));
 
       const totalCalories = meals

@@ -38,6 +38,7 @@ export interface LogFreeMealParams {
   unit: MeasurementUnit;
   calories?: number | null;
   notes?: string | null;
+  photoPath?: string | null;
 }
 
 interface UseLogMealReturn {
@@ -101,6 +102,14 @@ export function useLogMeal(): UseLogMealReturn {
       if (error) return { success: false, error: error.message };
 
       const r = data as { log_id: string; xp_earned: number; free_count: number };
+
+      if (params.photoPath) {
+        await supabase
+          .from('meal_logs')
+          .update({ photo_path: params.photoPath })
+          .eq('id', r.log_id);
+      }
+
       return {
         success: true,
         data: { logId: r.log_id, xpEarned: r.xp_earned, freeCount: r.free_count },
