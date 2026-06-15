@@ -34,6 +34,13 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   removeItem: jest.fn(),
 }));
 
+// Escoa microtasks pendentes (o callback do onAuthStateChange agora adia o
+// processamento via queueMicrotask para fora do lock do supabase-js).
+const flushAsync = () =>
+  act(async () => {
+    await new Promise(resolve => setTimeout(resolve, 0));
+  });
+
 describe('useAuth Stress Tests (Harden Flow)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -63,10 +70,11 @@ describe('useAuth Stress Tests (Harden Flow)', () => {
     // O useAuth dispara o getSession/onAuthStateChange internamente
     // Precisamos simular o disparo do evento que o useEffect ouviria
     const authChangeCallback = (supabase.auth.onAuthStateChange as jest.Mock).mock.calls[0][0];
-    
-    await act(async () => {
-      await authChangeCallback('SIGNED_IN', { user: { id: 'u1', email: 'test@test.com' } });
+
+    act(() => {
+      authChangeCallback('SIGNED_IN', { user: { id: 'u1', email: 'test@test.com' } });
     });
+    await flushAsync();
 
     expect(result.current.isAuthenticated).toBe(false);
     expect(result.current.user).toBe(null);
@@ -118,10 +126,8 @@ describe('useAuth Stress Tests (Harden Flow)', () => {
     const { result } = renderHook(() => useAuth());
     const authChangeCallback = (supabase.auth.onAuthStateChange as jest.Mock).mock.calls[0][0];
 
-    // Deixa o init() inicial (getSession -> updateSession(null)) assentar normalmente
-    await act(async () => {
-      await Promise.resolve();
-    });
+    // Deixa o INITIAL_SESSION inicial assentar normalmente
+    await flushAsync();
 
     // Simula falha no fetch de perfil (RPC) dentro do listener
     (supabase.from as jest.Mock).mockReturnValue({
@@ -134,12 +140,14 @@ describe('useAuth Stress Tests (Harden Flow)', () => {
     // forcando o erro a escapar para o try/catch do listener
     (AsyncStorage.removeItem as jest.Mock).mockRejectedValueOnce(new Error('Storage unavailable'));
 
-    // Nao deve lancar (sem unhandled rejection) e deve resolver normalmente
-    await act(async () => {
-      await expect(
+    // Nao deve lancar (sem unhandled rejection): o callback é síncrono e adia o
+    // processamento; o erro deve ser capturado e exposto no estado.
+    act(() => {
+      expect(
         authChangeCallback('SIGNED_IN', { user: { id: 'u1', email: 'test@test.com' } })
-      ).resolves.toBeUndefined();
+      ).toBeUndefined();
     });
+    await flushAsync();
 
     expect(result.current.error).toBe('Storage unavailable');
     expect(result.current.isLoading).toBe(false);
