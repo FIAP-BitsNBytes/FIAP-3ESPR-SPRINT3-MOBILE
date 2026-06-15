@@ -17,9 +17,11 @@ import {
   InsightCard,
   MealPlanEntryCard,
   PatientDetailHeader,
+  PatientInfoCard,
   TodayGoalsSection,
   WeeklyChartsSection,
 } from '../components/patient-detail';
+import { usePatientProfile } from '../hooks/usePatientProfile';
 
 const CALORIE_FALLBACK = 2000;
 const WATER_GOAL_ML = 2500;
@@ -36,6 +38,7 @@ export function NutritionistPatientDetailScreen() {
   const { plan, items: planItems, isLoading: isPlanLoading } = usePlanDetail(patientId ?? null);
   const { isOnline: isBottleOnline } = useDeviceStatus(patientId ?? null);
   const { clinicAccessGranted, isLoading: isConsentLoading, toggleConsent } = usePatientConsent(patientId ?? null);
+  const { profile } = usePatientProfile(patientId ?? null);
 
   const today = new Date().toISOString().slice(0, 10);
   const freeMeals = meals.filter(m => m.category === 'MEAL');
@@ -109,6 +112,8 @@ export function NutritionistPatientDetailScreen() {
       />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {profile ? <PatientInfoCard profile={profile} /> : null}
+
         <LevelCard
           name={patientName}
           level={isGamificationLoading ? 1 : stats.level}

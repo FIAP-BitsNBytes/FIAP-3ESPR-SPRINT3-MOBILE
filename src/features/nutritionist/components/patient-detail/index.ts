@@ -1,6 +1,7 @@
 export { GoalBar } from './GoalBar';
 export { WeeklyChart } from './WeeklyChart';
 export { PatientDetailHeader } from './PatientDetailHeader';
+export { PatientInfoCard } from './PatientInfoCard';
 export { MealPlanEntryCard } from './MealPlanEntryCard';
 export { TodayGoalsSection } from './TodayGoalsSection';
 export { WeeklyChartsSection } from './WeeklyChartsSection';
