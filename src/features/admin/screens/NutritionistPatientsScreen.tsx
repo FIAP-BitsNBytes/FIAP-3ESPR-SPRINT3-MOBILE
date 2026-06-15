@@ -9,9 +9,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, Flame, Star, Trophy, Users, Zap } from 'lucide-react-native';
+import { ArrowLeft, CalendarClock, Flame, Star, Trophy, Users, Zap } from 'lucide-react-native';
 import { appStyles, colors, fontSize, palette, radius, spacing } from '@/shared/theme';
 import { useNutritionistPatients, type NutritionistPatient } from '../hooks/useNutritionistPatients';
+import { useNutritionistProfile } from '../hooks/useNutritionistProfile';
+import { useNutritionistAppointments } from '../hooks/useNutritionistAppointments';
+import { NutritionistInfoCard } from '../components/NutritionistInfoCard';
+import { NutritionistSessionRow } from '../components/NutritionistSessionRow';
 
 const MEDAL_COLORS = [palette.amber, palette.silver, palette.bronze] as const;
 const LEVEL_COLORS = [palette.slate, colors.success, colors.primary, palette.violet, colors.danger] as const;
@@ -79,9 +83,19 @@ function PatientRow({ patient, rank }: { patient: NutritionistPatient; rank: num
 export function NutritionistPatientsScreen() {
   const router = useRouter();
   const { id, name } = useLocalSearchParams<{ id: string; name: string }>();
-  const { patients, isLoading, error, refresh } = useNutritionistPatients(id ?? '');
+  const nutritionistId = id ?? '';
+  const { patients, isLoading, error, refresh } = useNutritionistPatients(nutritionistId);
+  const { profile, isLoading: isProfileLoading, refresh: refreshProfile } = useNutritionistProfile(nutritionistId);
+  const { appointments, isLoading: isAppointmentsLoading, refresh: refreshAppointments } =
+    useNutritionistAppointments(nutritionistId);
 
   const totalPoints = patients.reduce((sum, p) => sum + p.points, 0);
+
+  const handleRefresh = () => {
+    refresh();
+    refreshProfile();
+    refreshAppointments();
+  };
 
   return (
     <SafeAreaView style={appStyles.screen} edges={['top']}>
@@ -99,10 +113,45 @@ export function NutritionistPatientsScreen() {
         data={patients}
         keyExtractor={item => item.id}
         contentContainerStyle={styles.list}
-        refreshing={isLoading}
-        onRefresh={refresh}
+        refreshing={isLoading || isProfileLoading || isAppointmentsLoading}
+        onRefresh={handleRefresh}
         ListHeaderComponent={
           <>
+            <Text style={[appStyles.sectionTitle, styles.sectionLabel]}>Informações Pessoais</Text>
+            {profile ? (
+              <View style={styles.blockSpacing}>
+                <NutritionistInfoCard profile={profile} />
+              </View>
+            ) : isProfileLoading ? (
+              <View style={[styles.inlineLoader, styles.blockSpacing]}>
+                <ActivityIndicator color={colors.primary} />
+              </View>
+            ) : null}
+
+            <View style={styles.sessionsHeader}>
+              <CalendarClock size={16} color={colors.primary} />
+              <Text style={[appStyles.sectionTitle, styles.sessionsTitle]}>Pacientes em Sessões</Text>
+              {appointments.length > 0 && (
+                <Text style={styles.sessionsCount}>{appointments.length}</Text>
+              )}
+            </View>
+            {isAppointmentsLoading && appointments.length === 0 ? (
+              <View style={[styles.inlineLoader, styles.blockSpacing]}>
+                <ActivityIndicator color={colors.primary} />
+              </View>
+            ) : appointments.length > 0 ? (
+              <View style={[styles.sessionsList, styles.blockSpacing]}>
+                {appointments.map(appointment => (
+                  <NutritionistSessionRow key={appointment.id} appointment={appointment} />
+                ))}
+              </View>
+            ) : (
+              <View style={[styles.sessionsEmpty, styles.blockSpacing]}>
+                <CalendarClock size={18} color={colors.muted} />
+                <Text style={styles.sessionsEmptyText}>Nenhuma sessão agendada</Text>
+              </View>
+            )}
+
             <View style={[appStyles.statusCard, styles.summaryCard]}>
               <View style={appStyles.statusIconContainer}>
                 <Users size={24} color={colors.onPrimary} />
@@ -195,6 +244,50 @@ const styles = StyleSheet.create({
   },
   sectionLabel: {
     marginBottom: spacing.xs,
+  },
+  blockSpacing: {
+    marginBottom: spacing.md,
+  },
+  inlineLoader: {
+    paddingVertical: spacing.lg,
+    alignItems: 'center',
+  },
+  sessionsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginBottom: spacing.xs,
+  },
+  sessionsTitle: {
+    marginBottom: 0,
+    flex: 1,
+  },
+  sessionsCount: {
+    color: colors.primary,
+    fontSize: fontSize.xs,
+    fontWeight: '800',
+    backgroundColor: colors.primaryGlow,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: radius.full,
+    overflow: 'hidden',
+  },
+  sessionsList: {
+    gap: spacing.sm,
+  },
+  sessionsEmpty: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  sessionsEmptyText: {
+    color: colors.muted,
+    fontSize: fontSize.sm,
   },
   patientCard: {
     backgroundColor: colors.surface,
