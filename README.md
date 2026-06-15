@@ -13,7 +13,7 @@ Plataforma de saúde e nutrição com gamificação, monitoramento clínico em t
 | Miguel Garcez de Carvalho | RM 553768 |
 | Vinicius Souza e Silva | RM 552781 |
 
-**Turma:** 3ESPR · FIAP · Sprint 3 · 2026
+**Turma:** 3ESPR · FIAP · Sprint 3 + Sprint 4 · 2026
 
 ---
 ### Video de demonstração
@@ -129,6 +129,19 @@ Comportamentos notáveis:
 - Nutricionistas têm o CRM/CRN buscado dinamicamente de `nutritionist_details`
 - Pacientes visualizam pontos de gamificação no card de status; outros roles veem o nome da clínica
 - Máscara de CPF (000.000.000-00) e telefone ((00) 00000-0000) aplicadas em tempo real
+
+---
+
+### Convites e Onboarding
+
+**Tela:** `AcceptInviteScreen` · **Hook:** `useInviteUser` · **Backend:** Edge Function `invite-user`
+
+O cadastro de novos usuários é feito **por convite**, nunca por auto-registro:
+
+1. Admin convida nutricionistas; nutricionista convida pacientes (FAB nas respectivas listas, com validação de nome + e-mail + CRM/CRN quando aplicável).
+2. O hook `useInviteUser` chama a **Edge Function `invite-user`** (`supabase/functions/invite-user`, runtime Deno). Ela usa a `service_role` key (no servidor, nunca exposta no app) para criar o usuário, definir `role`/`clinic_id`/CRM-CRN e disparar o e-mail de convite com link mágico.
+3. O convidado abre o link → `AcceptInviteScreen` troca o código por sessão (`exchangeCodeForSession`/`setSession`) e exige a criação de senha (mínimo 8 caracteres, confirmação).
+4. Concluído, o usuário já entra autenticado no app com o role correto.
 
 ---
 
@@ -336,9 +349,13 @@ node simulator.js --patient <uuid> [--interval 8]
 
 ### Foto de Refeição (Câmera/Galeria Nativa)
 
-**Tela:** Integrado em `NutritionScreen` (FreeMealModal) · **Hook:** `useImagePicker`
+**Telas:** `FreeMealModal` (refeição livre) e `LogItemModal` (prova de item do plano) — ambos em `NutritionScreen`/`PlanDetailScreen` · **Hook:** `useImagePicker`
 
-Dois botões: "📷 Câmera" (captura) e "🖼 Galeria" (seleção). O app solicita permissão (Android/iOS), abre a picker nativa (expo-image-picker), comprime a imagem a 60% de qualidade e faz upload para Supabase Storage (bucket `meal-photos`).
+A foto está disponível em **dois fluxos**:
+- **Refeição livre** (`FreeMealModal`): foto anexada a uma refeição registrada fora do plano.
+- **Prova de item do plano** (`LogItemModal`): ao confirmar o consumo de um item prescrito, o paciente pode anexar uma foto como comprovação. O `path` é gravado em `meal_logs.photo_path` por um `update` pós-RPC (`usePlanMutations.logItem`); as RPCs `get_today_plan` e `get_patient_plan_summary` retornam `photo_path` para exibir a thumbnail.
+
+Dois botões: "📷 Câmera" (captura) e "🖼 Galeria" (seleção). O app solicita permissão (Android/iOS), abre a picker nativa (expo-image-picker), comprime a imagem a 60% de qualidade e faz upload para Supabase Storage (bucket privado `meal-photos`).
 
 Fluxo:
 1. Usuário clica câmera/galeria em `FreeMealModal`
@@ -369,7 +386,7 @@ Fluxo:
 **4d. `mqttClient.test.ts`** — 13 testes do wrapper MQTT (paho-mqtt mockado)
 - Parse da URL do broker, ciclo de status (connecting → connected / error / disconnected), useSSL, subscribe com QoS 0, chegada de mensagens, disconnect resiliente
 
-Resultado: **117 testes passando em 17 suites**
+Resultado: **123 testes passando em 17 suites** (suíte completa do projeto, incluindo Sprints 3 e 4)
 
 ---
 
@@ -531,7 +548,9 @@ Supabase Realtime (subscriptions em tempo real)
 │           └── realtime.ts       # Nomes únicos de canal Supabase Realtime
 │
 ├── supabase/
-│   └── migrations/               # 31 arquivos SQL (schema + RLS + triggers)
+│   ├── migrations/               # 41 arquivos SQL (schema + RLS + triggers)
+│   └── functions/
+│       └── invite-user/          # Edge Function (Deno) — convite de usuários
 │
 ├── .env.example                  # Template de variáveis de ambiente
 ├── app.json                      # Configuração Expo
@@ -599,8 +618,8 @@ Os dados persistem após o fechamento do app e são restaurados automaticamente 
 | [React Native Reanimated](https://docs.swmansion.com/react-native-reanimated/) | 4.1.1 | Animações nativas |
 | [Lucide React Native](https://lucide.dev/) | 1.14.0 | Biblioteca de ícones |
 | [React Native Safe Area Context](https://github.com/th3rdwave/react-native-safe-area-context) | 5.6.0 | Safe areas iOS/Android |
-| [paho-mqtt](https://www.eclipse.org/paho/clients/js/) | 1.1.1 | Conectividade MQTT (IoT SmartBottle) |
-| [expo-image-picker](https://docs.expo.dev/versions/latest/sdk/imagepicker/) | ~15.0.0 | Câmera e galeria nativa |
+| [paho-mqtt](https://www.eclipse.org/paho/clients/js/) | 1.1.0 | Conectividade MQTT (IoT SmartBottle) |
+| [expo-image-picker](https://docs.expo.dev/versions/latest/sdk/imagepicker/) | ~17.0.11 | Câmera e galeria nativa |
 | [Jest](https://jestjs.io/) | 30.x | Testes unitários |
 
 ---
@@ -609,65 +628,111 @@ Os dados persistem após o fechamento do app e são restaurados automaticamente 
 
 ### Autenticação
 
-| Login | E-mail de Convite | Criação de Senha |
-|:-----:|:-----------------:|:----------------:|
-| ![Login](assets/screenshots/login.png) | ![E-mail de convite](assets/screenshots/email%20de%20convite.png) | ![Criar senha](assets/screenshots/criar%20senha%20depois%20do%20aceite%20do%20convite.png) |
+| Login | Sessão Persistida (AsyncStorage / LocalStorage) |
+|:-----:|:-----------------------------------------------:|
+| ![Login](assets/sprint%204/00%20-%20login%20v1.png) | ![Sessão persistida](assets/sprint%204/00%20-%20login%20v2%20-%20localstorage.png) |
 
 ### Paciente
 
-| Home | Alimentação | Registro de Refeição |
-|:----:|:-----------:|:--------------------:|
-| ![Home](assets/screenshots/paciente%20-%20home.png) | ![Alimentação 1](assets/screenshots/paciente%20-%20alimenta%C3%A7%C3%A3o%201.png) | ![Alimentação 2](assets/screenshots/paciente%20-%20alimenta%C3%A7%C3%A3o%202.png) |
+| Dashboard | Dashboard (rolagem) | Agenda |
+|:---------:|:-------------------:|:------:|
+| ![Dashboard 1](assets/sprint%204/paci%20-%20dashboard%20v1.png) | ![Dashboard 2](assets/sprint%204/paci%20-%20dashboard%20v2.png) | ![Agenda](assets/sprint%204/paci%20-%20agenda.png) |
 
-| Evolução (Gráficos) | Evolução (Detalhes) | Perfil |
-|:-------------------:|:-------------------:|:------:|
-| ![Evolução 1](assets/screenshots/paciente%20-%20evolu%C3%A7%C3%A3o%201.png) | ![Evolução 2](assets/screenshots/paciente%20-%20evolu%C3%A7%C3%A3o%202.png) | ![Perfil](assets/screenshots/paciente%20-%20perfil.png) |
+| Plano Alimentar | Registrar Refeição Definida | Foto da Refeição (Câmera/Galeria) |
+|:---------------:|:---------------------------:|:---------------------------------:|
+| ![Plano](assets/sprint%204/paci%20-%20plano%20alimentar.png) | ![Registrar definida 1](assets/sprint%204/paci%20-%20plano%20alimentar%20-%20registrar%20refei%C3%A7%C3%A3o%20definida%20v1.png) | ![Registrar com foto](assets/sprint%204/paci%20-%20plano%20alimentar%20-%20registrar%20refei%C3%A7%C3%A3o%20definida%20v2%20-%20foto.png) |
+
+| Definida (confirmação) | Refeição Livre | Refeição Livre (registro) |
+|:----------------------:|:--------------:|:-------------------------:|
+| ![Registrar definida 3](assets/sprint%204/paci%20-%20plano%20alimentar%20-%20registrar%20refei%C3%A7%C3%A3o%20definida%20v3.png) | ![Refeição livre](assets/sprint%204/paci%20-%20plano%20alimentar%20-%20refei%C3%A7%C3%A3o%20livre.png) | ![Registrar livre](assets/sprint%204/paci%20-%20plano%20alimentar%20-%20refei%C3%A7%C3%A3o%20livre%20-%20registrar%20refei%C3%A7%C3%A3o%20livre.png) |
+
+| SmartBottle IoT (conectando) | Evolução (Gráficos) | Evolução (Detalhes) |
+|:----------------------------:|:-------------------:|:-------------------:|
+| ![IoT conectando](assets/sprint%204/paci%20-%20plano%20alimentar%20-%20refei%C3%A7%C3%A3o%20livre%20-%20IOT%20-%20tentando%20conectar.png) | ![Evolução 1](assets/sprint%204/paci%20-%20evolu%C3%A7%C3%A3o%20v1.png) | ![Evolução 2](assets/sprint%204/paci%20-%20evolu%C3%A7%C3%A3o%20v2.png) |
+
+| Evolução (Resumo) | Perfil | Perfil (edição) |
+|:-----------------:|:------:|:---------------:|
+| ![Evolução 3](assets/sprint%204/paci%20-%20evolu%C3%A7%C3%A3o%20v3.png) | ![Perfil 1](assets/sprint%204/paci%20-%20perfil%20v1.png) | ![Perfil 2](assets/sprint%204/paci%20-%20perfil%20v2.png) |
 
 ### Nutricionista
 
-| Pacientes | Detalhe do Paciente | Convidar Paciente |
-|:---------:|:-------------------:|:-----------------:|
-| ![Pacientes](assets/screenshots/nutri%20-%20pacientes%20.png) | ![Paciente detalhe](assets/screenshots/nutri%20-%20pacientea.png) | ![Convite](assets/screenshots/nutri%20-%20paciente%20convite.png) |
+| Dashboard | Dashboard (rolagem) | Ranking |
+|:---------:|:-------------------:|:-------:|
+| ![Dashboard 1](assets/sprint%204/nutri%20-%20dashboard%20v1.png) | ![Dashboard 2](assets/sprint%204/nutri%20-%20dashboard%20v2.png) | ![Ranking](assets/sprint%204/nutri%20-%20ranking.png) |
 
-| E-mail de Convite | Ranking | Agenda |
-|:-----------------:|:-------:|:------:|
-| ![Convite email](assets/screenshots/nutri%20-%20paciente%20convite%20email.png) | ![Ranking](assets/screenshots/nutri%20-%20ranking.png) | ![Agenda](assets/screenshots/nutri%20-%20agenda.png) |
+| Pacientes | Convidar Paciente | Plano Alimentar |
+|:---------:|:-----------------:|:---------------:|
+| ![Pacientes](assets/sprint%204/nutri%20-%20pacientes.png) | ![Convidar](assets/sprint%204/nutri%20-%20pacientes%20-%20convidar.png) | ![Plano](assets/sprint%204/nutri%20-%20pacientes%20-%20plano%20alimentar.png) |
 
-| Plano Alimentar | Editar Item | Remover Item |
-|:---------------:|:-----------:|:------------:|
-| ![Plano](assets/screenshots/nutri%20-%20plano%20alimentar.png) | ![Editar](assets/screenshots/nutri%20-%20plano%20alimentar%20editar.png) | ![Remover](assets/screenshots/nutri%20-%20plano%20alimentar%20remover%201.png) |
+| Novo Plano (refeição) | Editar Plano (refeição) | Evolução do Paciente |
+|:---------------------:|:-----------------------:|:--------------------:|
+| ![Novo plano](assets/sprint%204/nutri%20-%20pacientes%20-%20plano%20alimentar%20-%20novo%20plano%20-%20refei%C3%A7%C3%A3o.png) | ![Editar plano](assets/sprint%204/nutri%20-%20pacientes%20-%20plano%20alimentar%20-%20editar%20plano%20-%20refei%C3%A7%C3%A3o.png) | ![Evolução 1](assets/sprint%204/nutri%20-%20pacientes%20-%20evolu%C3%A7%C3%A3o%20v1.png) |
 
-| Progresso do Paciente | Perfil |
-|:---------------------:|:------:|
-| ![Progresso](assets/screenshots/nutri%20-%20progresso%20.png) | ![Perfil](assets/screenshots/nutri%20-%20perfil.png) |
+| Evolução (Gráficos) | Evolução (Detalhes) | Evolução (Histórico) |
+|:-------------------:|:-------------------:|:--------------------:|
+| ![Evolução 2](assets/sprint%204/nutri%20-%20pacientes%20-%20evolu%C3%A7%C3%A3o%20v2.png) | ![Evolução 3](assets/sprint%204/nutri%20-%20pacientes%20-%20evolu%C3%A7%C3%A3o%20v3.png) | ![Evolução 4](assets/sprint%204/nutri%20-%20pacientes%20-%20evolu%C3%A7%C3%A3o%20v4.png) |
+
+| Agenda (Diária) | Agenda (Semanal) | Agenda (Mensal) |
+|:---------------:|:----------------:|:---------------:|
+| ![Agenda diária](assets/sprint%204/nutri-%20agenda%20-%20diaria%20v1.png) | ![Agenda semanal](assets/sprint%204/nutri-%20agenda%20-%20semanal%20v1.png) | ![Agenda mensal](assets/sprint%204/nutri-%20agenda%20-%20mensal.png) |
+
+| Perfil | Perfil (edição) |
+|:------:|:---------------:|
+| ![Perfil 1](assets/sprint%204/nutri%20-%20perfil%20v1.png) | ![Perfil 2](assets/sprint%204/nutri%20-%20perfil%20v2.png) |
 
 ### Administrador
 
-| Nutricionistas | Clínica | Perfil |
-|:--------------:|:-------:|:------:|
-| ![Nutricionistas](assets/screenshots/admin%20-%20nuticionistas.png) | ![Clínica](assets/screenshots/admin%20-%20clinica.png) | ![Perfil](assets/screenshots/admin%20-%20perfil.png) |
+| Dashboard | Dashboard (rolagem) | Clínica |
+|:---------:|:-------------------:|:-------:|
+| ![Dashboard 1](assets/sprint%204/adm%20-%20dashboard%20v1.png) | ![Dashboard 2](assets/sprint%204/adm%20-%20dashboard%20v2.png) | ![Clínica](assets/sprint%204/adm%20-%20clinica.png) |
+
+| Equipe (Nutricionistas) | Convidar Nutricionista | Detalhe do Nutricionista |
+|:-----------------------:|:----------------------:|:------------------------:|
+| ![Equipe](assets/sprint%204/adm%20-%20equipe.png) | ![Convidar nutri](assets/sprint%204/adm%20-%20equipe%20-%20convidadar%20nutri.png) | ![Detalhe nutri](assets/sprint%204/adm%20-%20equipe%20-%20detalhe%20do%20nutri.png) |
+
+| Agenda (Diária) | Agenda (Semanal) | Agenda (Mensal) |
+|:---------------:|:----------------:|:---------------:|
+| ![Agenda diária](assets/sprint%204/adm%20-%20agenda%20-%20diario%20v1.png) | ![Agenda semanal](assets/sprint%204/adm%20-%20agenda%20-%20semanal%20v1.png) | ![Agenda mensal](assets/sprint%204/adm%20-%20agenda%20-%20mensal.png) |
+
+| Perfil | Perfil (rolagem) | Perfil (edição) |
+|:------:|:----------------:|:---------------:|
+| ![Perfil 1](assets/sprint%204/adm%20-%20perfil%20v1.png) | ![Perfil 2](assets/sprint%204/adm%20-%20perfil%20v2.png) | ![Perfil 3](assets/sprint%204/adm%20-%20perfil%20v3%20-%20edi%C3%A7%C3%A3o.png) |
 
 ---
 
 ## Banco de Dados
 
-O schema completo está em `supabase/migrations/` (31 arquivos SQL). Principais tabelas:
+O schema completo está em `supabase/migrations/` (41 arquivos SQL). Principais tabelas:
 
 | Tabela | Descrição |
 |--------|-----------|
 | `clinics` | Clínicas cadastradas |
 | `profiles` | Usuários (Admin, Nutricionista, Paciente) |
+| `patient_details` | Vínculo paciente→nutricionista (`nutritionist_id`) e consentimento clínico (`clinic_access_granted`) — base do RBAC |
 | `nutritionist_details` | CRM/CRN e status de aprovação |
 | `appointments` | Consultas agendadas |
 | `meal_plans` / `meal_plan_items` | Planos alimentares e seus itens |
-| `meal_logs` | Registros de refeições dos pacientes |
-| `water_logs` | Registro de consumo de água |
+| `meal_logs` | Registros de refeições **e** de água. Colunas: `category` (`MEAL`/`WATER`/...), `source` (`MANUAL`/`IOT`), `photo_path` |
+| `evolution_logs` | Registros de evolução clínica do paciente |
 | `gamification_stats` | Pontos, XP, level e streak |
-| `badges` / `patient_badges` | Conquistas desbloqueadas |
-| `audit.unified_logs` | Auditoria de todas as operações do sistema |
+| `audit.unified_logs` | Auditoria de todas as operações do sistema (schema `audit`) |
+| `audit.transaction_logs` | Trilha de transações (schema `audit`) |
+| `archive.meal_logs_history` | Histórico arquivado de `meal_logs` (schema `archive`) |
+
+> **Observação:** não existem tabelas separadas para água (`water_logs`), conquistas (`badges`) ou fotos (`nutrition_photos`/`smart_bottle_logs`). Água e leituras IoT são registradas em `meal_logs` (diferenciadas por `category`/`source`) e as fotos vivem na coluna `meal_logs.photo_path` + bucket `meal-photos`. As tabelas `nutrition_photos`/`smart_bottle_logs` chegaram a ser criadas e foram removidas na migration `20260611140000_sprint4_drop_unused_tables.sql`.
+
+---
+
+## Limitações Conhecidas
+
+- **Localização da clínica:** a seção em `ClinicSettingsScreen` está reservada para implementação futura (renderizada desabilitada).
+- **SmartBottle:** o hardware é simulado via `scripts/iot-simulator` publicando no broker MQTT público (`broker.emqx.io`). Não há dispositivo físico provisionado.
+- **Broker MQTT público:** sem autenticação/ACL — adequado para demonstração acadêmica, não para produção.
+- **Edge Function `invite-user`:** roda em runtime Deno; os erros de typecheck em `supabase/functions/` (globais `Deno`, imports `esm.sh`) são esperados e não afetam o bundle do app (`src/`).
+- **Screenshots:** a galeria ao final cobre todos os perfis e fluxos, incluindo Sprint 4 (SmartBottle/IoT e foto de refeição). A demonstração em movimento está no vídeo.
 
 ---
 
 ## Licença
 
-Projeto acadêmico — FIAP · 3ESPR · Sprint 3 · 2026.
+Projeto acadêmico — FIAP · 3ESPR · Sprint 3 + Sprint 4 · 2026.
