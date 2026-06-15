@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { CheckCircle2, Pencil, Trash2, X } from 'lucide-react-native';
 import { colors, fontSize, radius, spacing } from '@/shared/theme';
+import { MealPhotoThumb } from '@/shared/components/MealPhotoThumb';
 import { usePlanPermissions } from '../hooks/usePlanPermissions';
 import { UNIT_LABELS } from '../types';
 import type { PlanItem } from '../types';
@@ -82,6 +83,9 @@ export function MealItemRow({ item, isAlt, onEdit, onDelete, onLog }: MealItemRo
   if (canLog) {
     return (
       <View style={[styles.patientCard, isLogged && !isPending && styles.patientCardLogged]}>
+        {isLogged && !isPending && item.photoPath ? (
+          <MealPhotoThumb photoPath={item.photoPath} size={48} />
+        ) : null}
         <View style={styles.patientLeft}>
           <Text style={styles.foodName} numberOfLines={1}>{item.foodName}</Text>
           <Text style={styles.patientMeta}>

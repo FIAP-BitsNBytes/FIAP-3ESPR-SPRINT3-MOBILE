@@ -24,6 +24,7 @@ interface PatientPlanSummaryRow {
   logged_at: string | null;
   xp_earned: number | null;
   adherence_pct: number | null;
+  photo_path: string | null;
 }
 
 /** Linha retornada por `get_today_plan` (RPC, visão do paciente). */
@@ -43,6 +44,7 @@ interface TodayPlanRow {
   logged_at: string | null;
   xp_earned: number | null;
   log_notes: string | null;
+  photo_path: string | null;
 }
 
 /** Linha da tabela `meal_plans` (metadados do plano). */
@@ -111,6 +113,7 @@ const fetchEditorPlan = async (patientId: string, date: string): Promise<PlanQue
     xpEarned: row.xp_earned ?? 0,
     logNotes: null,
     adherencePct: row.adherence_pct ?? null,
+    photoPath: row.photo_path ?? null,
   }));
 
   const { data: planData, error: planError } = await supabase
@@ -160,6 +163,7 @@ const fetchPatientPlan = async (targetId: string, date: string): Promise<PlanQue
     xpEarned: row.xp_earned ?? 0,
     logNotes: row.log_notes,
     adherencePct: null,
+    photoPath: row.photo_path ?? null,
   }));
 
   return { items, plan };

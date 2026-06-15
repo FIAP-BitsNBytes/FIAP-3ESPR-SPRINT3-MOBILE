@@ -78,7 +78,11 @@ function AuthGate() {
       router.replace('/(tabs)');
       return;
     }
-    if (!isAuthenticated) {
+    // Só redireciona se ainda NÃO estiver numa rota de auth. Evita um
+    // replace redundante que remontaria o LoginScreen e apagaria o estado
+    // de erro (ex.: "E-mail ou senha incorretos") durante uma tentativa.
+    const onAuthRoute = pathname === '/login' || pathname.startsWith('/(auth)');
+    if (!isAuthenticated && !onAuthRoute) {
       router.replace('/(auth)/login');
     }
   }, [isAuthenticated, isLoading, pathname]);

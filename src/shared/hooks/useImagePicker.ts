@@ -1,5 +1,10 @@
 import { useState } from 'react';
+import { Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+
+// Edição/cropping não é suportada de forma confiável no web e pode produzir
+// uma URI (blob:/data:) cujo fetch nunca resolve. Só habilita em nativo.
+const ALLOWS_EDITING = Platform.OS !== 'web';
 
 export type PickerStatus = 'idle' | 'denied' | 'granted';
 
@@ -31,7 +36,7 @@ export function useImagePicker(): UseImagePickerReturn {
     setStatus('granted');
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: ['images'],
-      allowsEditing: true,
+      allowsEditing: ALLOWS_EDITING,
       aspect: [4, 3],
       quality: 0.6,
     });
@@ -50,7 +55,7 @@ export function useImagePicker(): UseImagePickerReturn {
     setStatus('granted');
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      allowsEditing: true,
+      allowsEditing: ALLOWS_EDITING,
       aspect: [4, 3],
       quality: 0.6,
     });

@@ -30,6 +30,8 @@ export interface PlanItem {
   xpEarned: number;
   logNotes: string | null;
   adherencePct: number | null;
+  /** Foto anexada ao registro (prova de consumo), se houver. */
+  photoPath: string | null;
 }
 
 export interface PlanMeta {
@@ -66,6 +68,10 @@ export interface LogItemParams {
   actualUnit: MeasurementUnit;
   actualCal?: number | null;
   notes?: string | null;
+  /** Caminho da foto no storage (prova do consumo), gravado em meal_logs. */
+  photoPath?: string | null;
+  /** Alimento realmente consumido, se diferente do prescrito (substituição). */
+  actualFoodName?: string | null;
 }
 
 export interface LogItemResult {

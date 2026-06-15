@@ -118,7 +118,6 @@ export function usePlanMutations({ items, setItems, refresh, patientId }: UsePla
         setItems(snapshot);
         return { success: false, error: err.message };
       }
-      refresh();
       // Cast inline (não via interface nomeada): `Returns: Json` no RPC faz o
       // checker de overlap do TS rejeitar `Json as <interface nomeada>` mesmo
       // quando a forma é idêntica — type literal inline contorna isso.
@@ -126,6 +125,22 @@ export function usePlanMutations({ items, setItems, refresh, patientId }: UsePla
         log_id: string; xp_earned: number; base_xp: number;
         adherence_bonus: number; complete_day_bonus: number;
       };
+
+      // Foto (prova) e/ou alimento substituto: grava no log recém-criado.
+      // Falha aqui não invalida o registro — o item já foi logado.
+      const logUpdate: { photo_path?: string; food_name?: string } = {};
+      if (params.photoPath) logUpdate.photo_path = params.photoPath;
+      if (params.actualFoodName && params.actualFoodName.trim()) {
+        logUpdate.food_name = params.actualFoodName.trim();
+      }
+      if (result.log_id && Object.keys(logUpdate).length > 0) {
+        await supabase
+          .from('meal_logs')
+          .update(logUpdate)
+          .eq('id', result.log_id);
+      }
+
+      refresh();
       return {
         success: true,
         data: {

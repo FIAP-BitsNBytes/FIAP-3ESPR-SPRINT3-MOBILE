@@ -18,6 +18,37 @@ import { colors, fontSize, radius, spacing } from '@/shared/theme';
 
 type FocusedField = 'email' | 'password' | null;
 
+/**
+ * Traduz erros do Supabase Auth em mensagens claras para o usuário.
+ * Nota de segurança: o Supabase usa "Invalid login credentials" de propósito,
+ * sem revelar se o e-mail existe (evita enumeração de contas). Por isso a
+ * mensagem de credenciais é única para e-mail OU senha incorretos.
+ */
+const mapLoginError = (err: unknown): string => {
+  const raw =
+    err instanceof Error ? err.message
+    : typeof err === 'string' ? err
+    : '';
+  const msg = raw.toLowerCase();
+
+  if (msg.includes('invalid login credentials') || msg.includes('invalid_credentials')) {
+    return 'E-mail ou senha incorretos.';
+  }
+  if (msg.includes('email not confirmed') || msg.includes('not confirmed')) {
+    return 'Confirme seu e-mail antes de entrar. Verifique sua caixa de entrada.';
+  }
+  if (msg.includes('perfil incompleto')) {
+    return 'Conta sem perfil configurado. Entre em contato com o suporte.';
+  }
+  if (msg.includes('rate limit') || msg.includes('too many')) {
+    return 'Muitas tentativas. Aguarde alguns instantes e tente novamente.';
+  }
+  if (msg.includes('network') || msg.includes('fetch') || msg.includes('failed to fetch')) {
+    return 'Falha de conexão. Verifique sua internet e tente novamente.';
+  }
+  return raw || 'Não foi possível entrar. Tente novamente.';
+};
+
 export function LoginScreen() {
   const { login } = useAuthContext();
   const { preferences, isLoaded, updatePreferences } = useAppPreferences();
@@ -47,8 +78,8 @@ export function LoginScreen() {
       await login(email.trim(), password);
       await updatePreferences({ lastEmail: email.trim() });
       // AuthGate em _layout.tsx navega para /(tabs) via onAuthStateChange
-    } catch {
-      setError('E-mail ou senha invalidos.');
+    } catch (err) {
+      setError(mapLoginError(err));
     } finally {
       setIsLoading(false);
     }

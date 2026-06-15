@@ -82,14 +82,15 @@ export const useAuth = () => {
   useEffect(() => {
     let mounted = true;
 
-    const init = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (mounted) updateSession(session);
-    };
-
-    init();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    // O callback do onAuthStateChange NÃO pode aguardar chamadas Supabase
+    // diretamente: o supabase-js segura um lock interno (navigator.LockManager
+    // no web) enquanto o callback roda. Buscar o perfil (supabase.from) aqui
+    // dentro causa deadlock e deixa o app lento/travado em loop de carregamento.
+    // Solução: deixar o callback síncrono e adiar o processamento para fora do
+    // lock via microtask. O evento INITIAL_SESSION (disparado no subscribe) já
+    // entrega a sessão atual no boot — por isso não há getSession() manual aqui
+    // (evita o fetch duplicado de perfil na abertura).
+    const handleSessionChange = async (session: Session | null) => {
       try {
         if (mounted) await updateSession(session);
       } catch (err) {
@@ -99,6 +100,12 @@ export const useAuth = () => {
           setState(prev => ({ ...prev, isLoading: false, error: message }));
         }
       }
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      queueMicrotask(() => {
+        void handleSessionChange(session);
+      });
     });
 
     return () => {

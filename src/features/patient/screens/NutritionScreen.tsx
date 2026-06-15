@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Droplets, Plus, Utensils, Zap } from 'lucide-react-native';
-import { appStyles, colors, fontSize, radius, spacing } from '@/shared/theme';
+import { appStyles, colors, fontSize, radius, shadow, spacing } from '@/shared/theme';
 import { MealPhotoThumb } from '@/shared/components/MealPhotoThumb';
 import { useLogWater } from '../hooks/useLogWater';
 import { useTodayLogs } from '../hooks/useTodayLogs';
@@ -164,13 +164,18 @@ export function PatientNutritionScreen() {
               error={bottleError}
             />
 
-            <View style={styles.freeMealHeader}>
-              <Text style={appStyles.sectionTitle}>Registro livre</Text>
-              <TouchableOpacity style={styles.addFreeBtn} onPress={() => setShowFreeMeal(true)} activeOpacity={0.7}>
-                <Plus size={16} color={colors.primary} />
-                <Text style={styles.addFreeBtnText}>Adicionar</Text>
-              </TouchableOpacity>
-            </View>
+            <Text style={appStyles.sectionTitle}>Registro livre</Text>
+
+            <TouchableOpacity style={styles.registerCta} onPress={() => setShowFreeMeal(true)} activeOpacity={0.85}>
+              <View style={styles.registerCtaIcon}>
+                <Plus size={22} color={colors.onPrimary} />
+              </View>
+              <View style={styles.registerCtaBody}>
+                <Text style={styles.registerCtaTitle}>Registrar refeição</Text>
+                <Text style={styles.registerCtaSub}>Anote o que comeu fora do plano</Text>
+              </View>
+              <Utensils size={20} color={colors.onPrimary} />
+            </TouchableOpacity>
 
             {freeMeals.length > 0 ? (
               freeMeals.map(m => (
@@ -179,7 +184,7 @@ export function PatientNutritionScreen() {
                   <View style={styles.freeMealInfo}>
                     <Text style={styles.freeMealName}>{m.foodName}</Text>
                     <Text style={styles.freeMealMeta}>
-                      {m.quantity}{UNIT_LABELS[m.unit as MeasurementUnit] ?? m.unit}
+                      {m.quantity} {UNIT_LABELS[m.unit as MeasurementUnit] ?? m.unit}
                       {m.calories ? ` · ${m.calories} kcal` : ''}
                     </Text>
                   </View>
@@ -226,9 +231,11 @@ const styles = StyleSheet.create({
   progressFill:  { height: '100%', borderRadius: radius.full, backgroundColor: colors.primary },
   completeText:  { color: colors.success, fontSize: fontSize.xs, fontWeight: '700', textAlign: 'center' },
 
-  freeMealHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  addFreeBtn:     { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderRadius: 12, borderWidth: 1, borderColor: colors.primary + '55', backgroundColor: colors.primaryGlow },
-  addFreeBtnText: { color: colors.primary, fontSize: fontSize.xs, fontWeight: '700' },
+  registerCta:      { flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.primary, borderRadius: radius.lg, padding: spacing.md, minHeight: 64, ...shadow.primary },
+  registerCtaIcon:  { width: 44, height: 44, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.onPrimary + '26' },
+  registerCtaBody:  { flex: 1, gap: 2 },
+  registerCtaTitle: { color: colors.onPrimary, fontSize: fontSize.md, fontWeight: '800' },
+  registerCtaSub:   { color: colors.onPrimary + 'CC', fontSize: fontSize.xs, fontWeight: '600' },
   freeMealCard:   { backgroundColor: colors.surface, borderRadius: 12, padding: spacing.sm, borderWidth: 1, borderColor: colors.border, gap: spacing.sm, flexDirection: 'row' },
   freeMealInfo:   { flex: 1, justifyContent: 'center', gap: 2 },
   freeMealName:   { color: colors.text, fontSize: fontSize.sm, fontWeight: '600' },

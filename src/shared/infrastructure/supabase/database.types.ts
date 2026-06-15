@@ -666,6 +666,14 @@ export type Database = {
         Args: { p_patient_id: string; p_xp_amount: number }
         Returns: undefined
       }
+      get_nutritionist_email: {
+        Args: { p_nutritionist_id: string }
+        Returns: string | null
+      }
+      get_patient_email: {
+        Args: { p_patient_id: string }
+        Returns: string | null
+      }
       create_meal_plan: {
         Args: {
           p_end_date?: string
