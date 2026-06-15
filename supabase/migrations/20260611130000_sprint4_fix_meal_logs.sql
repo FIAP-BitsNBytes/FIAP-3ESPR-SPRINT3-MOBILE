@@ -29,18 +29,18 @@ CREATE POLICY "patient_select_own_meal_photos" ON storage.objects
     (storage.foldername(name))[1] = auth.uid()::text
   );
 
--- RLS: nutritionists can read photos of clinic patients
+-- RLS: nutritionists can read photos of their patients.
+-- NOTE: clinic_members não existe neste schema; o vínculo paciente↔nutricionista
+-- vive em patient_details.nutritionist_id. Esta policy é substituída pela versão
+-- definitiva (own-patient) na migration 20260611150000.
 DROP POLICY IF EXISTS "nutritionist_select_patient_meal_photos" ON storage.objects;
 CREATE POLICY "nutritionist_select_patient_meal_photos" ON storage.objects
   FOR SELECT TO authenticated
   USING (
     bucket_id = 'meal-photos' AND
     EXISTS (
-      SELECT 1 FROM profiles p
-      JOIN clinic_members cm_patient ON cm_patient.user_id = p.id
-      JOIN clinic_members cm_nutri ON cm_nutri.clinic_id = cm_patient.clinic_id
-      WHERE p.id::text = (storage.foldername(name))[1]
-        AND cm_nutri.user_id = auth.uid()
-        AND cm_nutri.role = 'NUTRITIONIST'
+      SELECT 1 FROM public.patient_details pd
+      WHERE pd.nutritionist_id = auth.uid()
+        AND pd.id::text = (storage.foldername(name))[1]
     )
   );

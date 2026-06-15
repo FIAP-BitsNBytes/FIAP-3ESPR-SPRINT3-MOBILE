@@ -42,35 +42,18 @@ ALTER TABLE meal_logs ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'man
 -- Enable RLS on smart_bottle_logs
 ALTER TABLE smart_bottle_logs ENABLE ROW LEVEL SECURITY;
 
--- RLS Policy: Patients can view only their own smart bottle logs
+-- RLS Policy: Patients can view only their own smart bottle logs.
+-- NOTE: tabelas auxiliares (patient_relations/users_roles) não existem
+-- neste schema; estas tabelas são temporárias e removidas na migration
+-- 20260611140000. Policy mínima own-patient apenas para manter RLS válido.
 CREATE POLICY "Patients can view own smart_bottle_logs" ON smart_bottle_logs
   FOR SELECT
-  USING (
-    auth.uid() = patient_id OR
-    EXISTS (
-      SELECT 1 FROM patient_relations
-      WHERE nutritionist_id = auth.uid() AND patient_id = smart_bottle_logs.patient_id
-    ) OR
-    EXISTS (
-      SELECT 1 FROM users_roles
-      WHERE user_id = auth.uid() AND role IN ('admin', 'clinic_manager')
-    )
-  );
+  USING (auth.uid() = patient_id);
 
--- RLS Policy: Only patients and authorized nutritionists can insert smart_bottle_logs
+-- RLS Policy: Only patients can insert their own smart_bottle_logs
 CREATE POLICY "Smart bottle logs insert policy" ON smart_bottle_logs
   FOR INSERT
-  WITH CHECK (
-    auth.uid() = patient_id OR
-    EXISTS (
-      SELECT 1 FROM patient_relations
-      WHERE nutritionist_id = auth.uid() AND patient_id = smart_bottle_logs.patient_id
-    ) OR
-    EXISTS (
-      SELECT 1 FROM users_roles
-      WHERE user_id = auth.uid() AND role IN ('admin', 'clinic_manager')
-    )
-  );
+  WITH CHECK (auth.uid() = patient_id);
 
 -- Enable RLS on nutrition_photos
 ALTER TABLE nutrition_photos ENABLE ROW LEVEL SECURITY;
@@ -78,17 +61,7 @@ ALTER TABLE nutrition_photos ENABLE ROW LEVEL SECURITY;
 -- RLS Policy: Patients can view only their own photos
 CREATE POLICY "Patients can view own nutrition_photos" ON nutrition_photos
   FOR SELECT
-  USING (
-    auth.uid() = patient_id OR
-    EXISTS (
-      SELECT 1 FROM patient_relations
-      WHERE nutritionist_id = auth.uid() AND patient_id = nutrition_photos.patient_id
-    ) OR
-    EXISTS (
-      SELECT 1 FROM users_roles
-      WHERE user_id = auth.uid() AND role IN ('admin', 'clinic_manager')
-    )
-  );
+  USING (auth.uid() = patient_id);
 
 -- RLS Policy: Patients can insert their own photos
 CREATE POLICY "Patients can insert own nutrition_photos" ON nutrition_photos
