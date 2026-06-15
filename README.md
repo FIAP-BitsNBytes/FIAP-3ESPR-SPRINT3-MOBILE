@@ -4,6 +4,18 @@ Plataforma de saúde e nutrição com gamificação, monitoramento clínico em t
 
 ---
 
+## 🔑 Acessos para Avaliação
+
+Credenciais de teste para o professor validar cada perfil de permissão (RBAC):
+
+| Perfil | E-mail | Senha |
+|--------|--------|-------|
+| **Paciente** | `vali597@uorak.com` | `asdasdqwe` |
+| **Nutricionista** | `zaida2711@uorak.com` | `asdasdqwe` |
+| **Admin** | `asd@asd.com` | `asd` |
+
+---
+
 ## Integrantes
 
 | Nome | RM |
