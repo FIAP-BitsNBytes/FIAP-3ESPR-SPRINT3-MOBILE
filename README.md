@@ -20,6 +20,7 @@ Credenciais de teste para o professor validar cada perfil de permissão (RBAC):
 
 | Nome | RM |
 |------|----|
+| Edson Leonardo | RM 553737 |
 | Gustavo Bezerra Assumção | RM 553076 |
 | Jó Sales | RM 552679 |
 | Miguel Garcez de Carvalho | RM 553768 |
